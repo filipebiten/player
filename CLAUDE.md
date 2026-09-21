@@ -167,13 +167,33 @@ Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
 - `ui-ux-pro-max` também está instalada (banco de estilos/paletas/guidelines de UX).
 - Não usar `gsap`, `threejs` nem animação decorativa.
 
-## Roadmap
+## Roadmap e estado atual (retomar daqui)
 
-**Prioridade (pedido do Filipe):** usar as skills **`ux-audit`** e **`pwa-development`** neste app.
-1. `ux-audit`: percorrer o app publicado como usuário real (390 px e 1440 px), com prova de interação, axe, orçamento de performance e bateria de cenários. Corrigir o que achar.
-2. `pwa-development`: revisar manifest, ícones (maskable), splash do iOS, service worker, instalação e atualização do PWA.
-3. Depois, aplicar as mesmas skills no **app treino** e no **app financeiro (Bolso)**.
+Atualizado em 2026-09-21, logo depois de publicar a **v2.1.0** (`d22e933` em `main`, no ar no GitHub Pages).
 
-Ideias em aberto (não fazer sem o Filipe pedir): cachear thumbnails no service worker; opção de "mais antigo não assistido" no lugar do "mais novo".
+### Já feito
+- **v2.0.0:** reformulação completa (semana automática, sem player, cache 6 h, progresso por vídeo/canal, cursos, layout mobile/desktop, atalhos, sync via Gist, CSP, acessibilidade).
+- **v2.1.0:** "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação do token ao salvar, indicador de sync sempre visível, diagnóstico no Ajustes.
+- **Testado no iPhone pelo Filipe (v2.0):** vídeo abre no app do YouTube, canal abre certo, layout "muito bom". **A v2.1 ainda não foi testada em aparelho.**
+- Testado só com mocks (sem chave/token reais): sync, API do YouTube, offline, semana por dia do mês, axe (0 violações), alvos de toque.
+
+### Pendências, em ordem
+1. **BUG ABERTO — sincronização computador ↔ celular não funcionou na v2.0.** Causa **não confirmada**. Evidência: a conta do Filipe tinha **0 gists** (nenhum aparelho conseguiu criar o gist); CORS e CSP de produção estão ok; o caminho "Ajustes → colar token → Salvar" funciona nos testes com token válido. Hipóteses: token nunca colado em um ou nos dois aparelhos (quem tinha API Key da v1 nunca via a tela inicial com o campo do token); token fine-grained; token sem escopo `gist`; token expirado. **Próximo passo:** pedir ao Filipe, nos dois aparelhos, o texto da linha de status em **Ajustes** e o código "Gist: xxxxxxx…" da v2.1 (e se a nuvem do topo está riscada, normal ou vermelha). Só depois de saber a causa, corrigir (skill `diagnose` / `superpowers:systematic-debugging`). Conferir com `gh api /gists --jq length`.
+2. **Rodar `ux-audit`** (prioridade pedida pelo Filipe) no app **publicado** em 390 px e 1440 px: interação real, axe, orçamento de performance, cenários. Corrigir o que achar e registrar no CHANGELOG.
+3. **Rodar `pwa-development`**: manifest, ícone maskable, splash e ícone do iOS, service worker (estratégia, atualização), instalação. Conferir se `start_url` `./index.html` funciona com o cache do `sw.js`.
+4. **App treino (treino-hibrido) e app financeiro (Bolso · Bittencourt):** aplicar `ux-audit`, `pwa-development`, `mobile-app-ui-design`, `harmonize`, `comprehensive-test`, `verify` (o Filipe quer ver isso "depois do FlowPlayer").
+
+### Ideias em aberto (só se o Filipe pedir)
+- "Próximo não assistido" pelo **mais antigo** em vez do mais novo (hoje é o mais novo entre os carregados).
+- Cachear thumbnails no service worker.
+- Confirmar num aparelho real que o "Mostrar mais" e o offline funcionam no iPhone.
+
+### Não fazer (decisões fechadas)
+Player embutido, aba Ao Vivo, semana escolhida salva, estado na URL, `data-testid` em massa, framework/build.
+
+### Como retomar numa sessão nova
+1. Leia este arquivo inteiro e o `CHANGELOG.md`.
+2. `git log --oneline | head` para ver onde parou; `node tests/lib.test.mjs`.
+3. Skills a carregar: `ux-audit`, `pwa-development`, `web-design-guidelines`, `webapp-testing`, `agent-browser` (ver "Como testar").
 
 Fluxo que foi usado: `plan-phase` → `execute-phase` → `verify` → `harmonize` → `comprehensive-test` → `commit-phase`. Se algo quebrar, `diagnose` antes de sair corrigindo.
