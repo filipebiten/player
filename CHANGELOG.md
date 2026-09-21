@@ -26,6 +26,7 @@ Reformulação focada em usabilidade no celular (iPhone, PWA) e no computador.
 
 ### Alterado
 - Código separado em `index.html` + `styles.css` + `data.js` + `lib.js` + `app.js`. Listas `WEEKS` e `PLATFORMS` movidas para `data.js` **sem alteração** (conferido com `diff`).
+- Visual: a cor de cada plataforma nos cursos virou um ponto ao lado do nome (era uma borda grossa no lado do cartão), e o canal selecionado na lista usa um anel fino em vez de barra lateral.
 - A API Key passa a ficar em `fp-config` (o app migra sozinho o valor antigo de `fp-state`).
 - `resolveChannelId`, `fetchChannelVids` e `searchVids` reaproveitadas; agora tratam erros da API (`error` no JSON), filtram vídeos privados/apagados e trazem 10 vídeos por canal.
 
