@@ -70,15 +70,14 @@
   }
 
   // ---- Datas / cache ----
+  // Data relativa em pt-BR via Intl ("hoje", "ontem", "há 3 dias", "há 2 semanas"…)
+  const rtf = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
   function relDate(iso, now = Date.now()) {
-    const days = Math.floor((now - new Date(iso).getTime()) / DAY);
-    if (days < 1) return "hoje";
-    if (days === 1) return "ontem";
-    if (days < 7) return `há ${days} dias`;
-    const plural = (n, one, many) => `há ${n} ${n === 1 ? one : many}`;
-    if (days < 30) return plural(Math.floor(days / 7), "semana", "semanas");
-    if (days < 365) return plural(Math.floor(days / 30), "mês", "meses");
-    return plural(Math.floor(days / 365), "ano", "anos");
+    const days = Math.max(0, Math.floor((now - new Date(iso).getTime()) / DAY));
+    if (days < 7) return rtf.format(-days, "day");
+    if (days < 30) return rtf.format(-Math.floor(days / 7), "week");
+    if (days < 365) return rtf.format(-Math.floor(days / 30), "month");
+    return rtf.format(-Math.floor(days / 365), "year");
   }
 
   const isFresh = (entry, now = Date.now(), ttl = CACHE_TTL) => !!entry && now - entry.t < ttl;

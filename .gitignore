@@ -1,3 +1,6 @@
 .DS_Store
 .env*
 *.local
+tests/e2e/.site/
+tests/e2e/mock_gist.log
+tests/e2e/*.png

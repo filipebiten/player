@@ -1,0 +1,153 @@
+# FlowPlayer — guia para sessões futuras do Claude Code
+
+Leia este arquivo inteiro antes de mexer em qualquer coisa. Ele foi escrito para quem chega sem contexto.
+
+## O que é
+
+App web pessoal do Filipe para acompanhar **canais do YouTube** e **cursos online** em **rodízio semanal**. Ele usa no iPhone (instalado como PWA) e no computador. Repo público: `github.com/filipebiten/player`, publicado no GitHub Pages em `https://filipebiten.github.io/player/`.
+
+Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe um vídeo, assiste no YouTube e marca. Quando termina o canal, marca "concluído nesta semana". Nos cursos, anota "onde parei" e passa a vez para a próxima plataforma.
+
+## Restrições que não mudam
+
+- **Estático, sem build, sem framework, sem dependência paga.** Tem que rodar no GitHub Pages como está. Nada de npm no app (o `node` só roda o teste de `lib.js`).
+- **Identidade visual:** fundo `#0B0E14`, destaque âmbar `#F59E0B`, fonte Outfit, ícones `icon-192.png` e `icon-512.png`. Tokens em `:root` de `styles.css`.
+- **Nenhuma chave ou token no repo** (ele é público). API Key e token do Gist ficam só no `localStorage` de cada aparelho.
+- Sem animações decorativas (o `prefers-reduced-motion` é respeitado).
+
+## Estrutura de arquivos
+
+| Arquivo | Papel |
+|---|---|
+| `index.html` | Casca: meta tags do PWA, **CSP**, `<div id="app">`, `<dialog id="settings">`, carrega os 3 scripts nesta ordem: `data.js` → `lib.js` → `app.js`. |
+| `data.js` | **Listas `WEEKS` (canais) e `PLATFORMS` (cursos).** É onde se edita conteúdo. |
+| `lib.js` | Lógica **pura** (sem DOM nem rede): semana pelo dia, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
+| `app.js` | Estado, chamadas à API do YouTube, cache, progresso, sync do Gist, render (`innerHTML` + delegação de eventos por `data-action`), atalhos. |
+| `styles.css` | Tokens, componentes e layout. Mobile primeiro; duas colunas a partir de `min-width: 900px`. |
+| `manifest.json`, `icon-*.png` | PWA. Não mexer sem motivo. |
+| `tests/lib.test.mjs` | Testes de `lib.js`: `node tests/lib.test.mjs`. |
+| `tests/e2e/` | Ambiente e cenários de teste no navegador (ver "Como testar"). |
+| `README.md` | Para o Filipe: como configurar chave, token e instalar no iPhone. |
+| `CHANGELOG.md` | Histórico. Atualize a cada mudança. |
+
+`app.js` é um arquivo só de propósito. Não quebre em módulos ES nem introduza bundler.
+
+## Regras fechadas
+
+### Semana automática
+`FP.weekIndexForDate(date)` = `min(3, floor((diaDoMês - 1) / 7))`. Dia 1–7 → Semana 1 (índice 0), 8–14 → 2, 15–21 → 3, **22 em diante → 4** (inclui 29–31). O app **sempre abre na semana de hoje**; a semana escolhida manualmente não é salva. Navegação entre semanas: seletor 1–4 na lista de canais e teclas `[` `]`. Se o app voltar ao primeiro plano em outro dia que mude a semana, ele reposiciona (`visibilitychange`). O `getWeekIndex` antigo (semana do ano módulo 4) foi removido: não volte a ele.
+
+### Modelo de dados do progresso
+
+**`localStorage` (por aparelho):**
+
+| Chave | Conteúdo | Sincroniza? |
+|---|---|---|
+| `fp-config` | `{apiKey, gistToken, gistId}` | **Nunca** |
+| `fp-progress` | progresso (formato abaixo) | Sim, via Gist |
+| `fp-vidcache` | `{ "<channelKey>": {t, vids:[{id,title,thumb,published,channel}]} }` | Não |
+| `fp-chid` | `{ "<handle>": "<channelId>" }` (não expira) | Não |
+| `fp-ui` | `{tab}` | Não |
+| `fp-state` | **legado**: a v1 guardava a API Key aqui. Migrado para `fp-config` e apagado no primeiro load. | — |
+
+**`fp-progress` = conteúdo do arquivo `flowplayer-progress.json` no Gist:**
+
+```json
+{
+  "v": 1,
+  "watched": { "<videoId>": { "t": 1789995575282, "on": true } },
+  "done":    { "2026-09-3": { "<channelKey>": { "t": 1789995600000, "on": true } } },
+  "courses": { "Hotmart|Investidor 33 Dias": { "t": 1789995606223, "lastLesson": "Módulo 7, aula 3" } },
+  "rot":     { "t": 1789995606448, "p": 1, "c": 0 }
+}
+```
+
+- `watched`: check por vídeo, indexado por `videoId`.
+- `done`: chave `ANO-MÊS-SEMANA` (`FP.doneKey`, semana de 1 a 4, mês com 2 dígitos). O **mês vem da data de hoje**, então zera sozinho no mês seguinte, e consultar outra semana mostra o progresso dessa semana no mês atual. A chave interna é o `channelKey`.
+- **`channelKey`** = `channelId` ‖ `handle` ‖ `query` (`FP.channelKey`). **Nunca o índice** na lista. Por isso reordenar `WEEKS` não quebra o progresso, mas **renomear handle/channelId/query zera o progresso daquele canal**.
+- `courses`: chave `"<nome da plataforma>|<nome do curso>"`. `lastLesson` no `PLATFORMS` é só o **valor inicial**; depois de editado no app vale o salvo.
+- `rot`: rodízio dos cursos (`p` = índice da plataforma da vez, `c` = índice do curso).
+- **Desmarcar** grava `{t, on:false}` (túmulo), nunca apaga a chave. Sem isso o merge ressuscitaria a marca vinda do outro aparelho.
+- **Merge** (`FP.mergeProgress`): por chave, vence o `t` maior. Comutativo e idempotente (testado). Depois do merge, `FP.pruneProgress` descarta `watched` com mais de 180 dias e `done` com mais de 400 dias.
+
+### Sincronização (Gist)
+- Token **clássico** com escopo **só `gist`**, colado uma vez por aparelho (Ajustes ou tela inicial). Sem token o app funciona só local, sem erro nem aviso.
+- Primeiro aparelho: `POST /gists` (`public:false`). Os outros: `GET /gists` procurando o arquivo `flowplayer-progress.json`; se houver mais de um gist com esse arquivo, todos usam o **mais antigo** (`created_at`).
+- Quando sincroniza: ao abrir, ao voltar para o app (`visibilitychange`), ao voltar a conexão (`online`), e **2 s depois de cada marcação** (debounce em `scheduleSync`).
+- Fluxo de `syncNow`: lê o remoto → **faz o merge e monta o corpo do PATCH sem nenhum `await` no meio** (marcações feitas durante a rede não se perdem) → só faz `PATCH` se o remoto for diferente. Gist apagado (404) → procura/cria de novo. Os `GET` usam `cache: "no-cache"` porque o GitHub serve gist com `max-age=60` e o outro aparelho leria dado velho.
+- Limite conhecido: dois aparelhos gravando no mesmo segundo podem sobrescrever um ao outro no Gist; cada um mantém o local e a próxima sincronização repõe. Aceito.
+- A API Key **nunca** vai para o Gist.
+
+### Cache de vídeos
+- Por canal, **6 horas** (`FP.CACHE_TTL`), em `fp-vidcache`. Abrir um canal com cache fresco não gasta cota. Botão **Recarregar** (e tecla `R`) ignora o cache.
+- Erro (cota, rede) com cache velho: mostra a lista salva + aviso.
+- `channelId` resolvido a partir do handle fica em `fp-chid` para sempre (o fallback por `search` custa 100 unidades de cota).
+- Cota do YouTube: 10.000 unidades/dia. `channels` e `playlistItems` custam 1 cada. `search` custa 100 (só usado no canal do tipo `search`, "Andrea Vargas", e no fallback de handle).
+- Filtra vídeos "Private video" e "Deleted video". Traz 10 vídeos por canal.
+
+### O que foi removido, e por quê
+- **Player embutido (YouTube IFrame API), controle de velocidade, "próximo vídeo" automático:** decisão do Filipe: clicar no vídeo abre o YouTube em nova aba (no iPhone, no app do YouTube). **Não reintroduzir.**
+- **Aba "Ao Vivo" (`fetchLiveStreams`):** usava `search?eventType=live`, que custa 100 unidades de cota por canal por chamada (cota gratuita: 10.000/dia). **Não reintroduzir.**
+- **Modal de configurações para trocar de semana:** a semana é automática; o seletor agora fica na lista.
+- **Zoom bloqueado (`user-scalable=no`):** removido por acessibilidade. Os inputs têm 16 px para o iOS não dar zoom ao focar.
+
+### Layout
+- **Celular (<900 px):** uma tela por vez. Lista de canais → toque abre a tela do canal (`data-view="channel"`, com `history.pushState` para o gesto de voltar). Abas Vídeos/Cursos **embaixo** (`.tabs` fixo). Botão principal "Marcar canal concluído" na `.dock`, acima das abas, ao alcance do polegar. Alvos de toque ≥ 44–48 px.
+- **Desktop (≥900 px):** duas colunas (`.split`): canais à esquerda, vídeos do canal à direita em grade de cartões. Abas viram navegação do topo. Sem largura máxima de 640 px.
+- **Atalhos** (só desktop; a legenda `.legend` some sem mouse): `J`/`K` canal, `Espaço` marcar canal concluído, `[` `]` semana, `R` recarregar, `1`/`2` abas.
+- Seleção de canal e tela atual **não** vão para a URL (o app deve abrir sempre na semana de hoje). Decisão consciente.
+
+### Segurança
+- **Todo texto vindo de API/dados passa por `FP.escapeHtml` (`esc()`) antes de entrar em `innerHTML`.** Mantenha isso ao adicionar campos.
+- **CSP** em `index.html` (meta): `connect-src` só `googleapis.com`, `api.github.com`, `gist.githubusercontent.com`; scripts só `'self'`. Se adicionar um domínio (fonte, API, imagem), **atualize a CSP** ou o recurso será bloqueado.
+- Links externos: `target="_blank" rel="noopener noreferrer"`.
+- O token com escopo `gist` lê e escreve todos os gists do Filipe (não existe escopo menor). Fica só em `fp-config`. Nunca logue nem exiba o token.
+
+## Onde editar canais e cursos
+
+Em **`data.js`**.
+
+> **NÃO ALTERE `name`, `handle`, `channelId` nem `query` dos itens existentes.** O progresso salvo é indexado por eles (ver `channelKey`). Os valores atuais foram copiados byte a byte do `index.html` original e conferidos com `diff`. Para **adicionar** um canal, acrescente um item novo no fim da semana; para **remover**, apague o item (o progresso dele fica órfão e é podado sozinho).
+
+Formato de canal: `{ name, handle, type: "channel" }`, ou `{ name, channelId, type: "channel" }`, ou `{ name, query, type: "search" }` (busca por vídeos recentes; custa 100 de cota por carga). Formato de plataforma: `{ name, url, color, courses: [{ name, lastLesson }] }`.
+
+## Como publicar
+
+GitHub Pages serve a branch `main` (pasta raiz). Publicar = `git push origin main`; leva cerca de 1 minuto. Confirme com o Filipe antes de dar push (ele usa o app no dia a dia). Depois de publicar, no iPhone o PWA pode segurar a versão antiga: feche o app por completo e reabra.
+
+## Como testar
+
+1. Lógica pura: `node tests/lib.test.mjs` (tem que imprimir só linhas `ok`).
+2. No navegador, em **390 px** (celular) e **1440 px** (desktop), com as skills **`webapp-testing`** e **`agent-browser`**. Não há chave real de API nem token no ambiente de teste: tudo roda contra mocks.
+
+```bash
+tests/e2e/setup.sh            # sobe :8765 (site real), :8767 (cópia com CSP liberando o mock), :8766 (mock Gist+YouTube)
+cd tests/e2e
+bash week-and-a11y.sh         # semana por dia do mês (1,7,8,14,15,21,22,30) + axe em 390/1440
+bash tap-targets.sh           # alvos de toque < 44 px (rode logo depois do anterior: reaproveita a sessão "a11y")
+bash sync.sh                  # 2 aparelhos (sessões "phone" e "desk"): marca num, aparece no outro
+bash sync-errors.sh           # sem token / token inválido / gist apagado / offline
+bash api.sh                   # busca YouTube: cache 6h, TTL, cota estourada, canal tipo busca, escape de HTML
+./setup.sh stop
+```
+
+- `seed.js` injeta `fp-config` e um `fp-vidcache` fictício (27 canais × 6 vídeos) via `agent-browser eval`, para testar a interface sem rede.
+- `redirect.js` (`--init-script`) redireciona `api.github.com` e `googleapis.com` para o mock local; `fakedate.js` simula o dia do mês.
+- Os scripts são **bash** (em zsh, `$A` com espaços não separa em palavras: rode com `bash arquivo.sh`).
+- Para falar com o mock a partir do shell, use Python `urllib` (o `curl` pode ser bloqueado por hooks do Claude Code).
+- Depois de mudar `app.js`, `styles.css` ou `index.html`, rode `setup.sh` de novo (ele recopia a cópia de teste).
+
+**Teste que só o Filipe consegue fazer (dispositivo real):** ver o final do `CHANGELOG.md` da versão 2.0.0 (abrir vídeo no app do YouTube pelo PWA no iPhone, sync com token real, área segura/notch).
+
+## Skills recomendadas para mexer no visual
+
+Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
+- **`frontend-design`** e **`impeccable`**: direção visual e layout responsivo.
+- **`minimalist-ui`** e **`anti-ui-slop`**: manter o visual editorial e sem cara de template.
+- **`ui-styling`** e **`design-system`**: tokens de cor, espaçamento e tipografia (fica em `:root` de `styles.css`).
+- **`mobile-app-ui-design`**: uso com uma mão, alvos de toque, navegação inferior (princípios, é PWA em HTML e não app nativo).
+- **`web-design-guidelines`**: rodar no fim de qualquer mudança de UI (regras de acessibilidade, foco, formulários).
+- **`webapp-testing`** e **`agent-browser`**: testar em 390 e 1440 px antes de dar por pronto.
+- Não usar `gsap`, `threejs` nem animação decorativa.
+
+Fluxo que foi usado: `plan-phase` → `execute-phase` → `verify` → `harmonize` → `comprehensive-test` → `commit-phase`. Se algo quebrar, `diagnose` antes de sair corrigindo.

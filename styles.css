@@ -35,7 +35,12 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%; color-scheme: dark; touch-action: manipulation;
+  /* topo sticky e abas/dock fixas não cobrem o item focado */
+  scroll-padding-top: calc(var(--top-h) + var(--safe-t) + var(--s2));
+  scroll-padding-bottom: calc(var(--tabs-h) + var(--safe-b) + 92px);
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -52,6 +57,10 @@ ul { list-style: none; }
 svg { display: block; flex-shrink: 0; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 [hidden] { display: none !important; }
+h1, h2 { text-wrap: balance; }
+.video__title { text-wrap: pretty; }
+.skip { position: absolute; left: var(--s3); top: -100px; z-index: 100; padding: var(--s3) var(--s4); background: var(--accent); color: var(--on-accent); border-radius: var(--radius-s); font-weight: 600; }
+.skip:focus { top: var(--s3); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
@@ -76,6 +85,8 @@ svg { display: block; flex-shrink: 0; }
   .btn--primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
   .btn--primary[aria-pressed="true"]:hover { background: var(--surface-2); }
   .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  .tab:not([aria-current="page"]):hover, .seg__btn:not([aria-pressed="true"]):hover { color: var(--text); }
+  .check:hover .check__box { border-color: var(--accent); }
 }
 
 /* ---------- topo ---------- */
@@ -237,6 +248,7 @@ svg { display: block; flex-shrink: 0; }
 
 /* ---------- configurações (<dialog>) ---------- */
 dialog.sheet {
+  overscroll-behavior: contain;
   width: min(480px, 100vw - 24px); max-height: 90dvh; overflow: auto; margin: auto;
   background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); padding: 0;
 }
@@ -248,7 +260,7 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .7); }
 .status-line { font-size: var(--fs-s); color: var(--text-muted); }
 .status-line[data-state="error"] { color: var(--error); }
 @media (max-width: 899px) {
-  dialog.sheet { margin: auto auto 0; width: 100vw; border-radius: var(--radius-l) var(--radius-l) 0 0; }
+  dialog.sheet { margin: auto auto 0; width: 100vw; max-width: 100vw; border-radius: var(--radius-l) var(--radius-l) 0 0; }
   .sheet__body { padding-bottom: calc(var(--s5) + var(--safe-b)); }
 }
 

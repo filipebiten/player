@@ -281,11 +281,11 @@ function renderSetup() {
             <li>Acesse o <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a></li>
             <li>Crie um projeto (ou use um existente)</li>
             <li>Ative a <strong>YouTube Data API v3</strong></li>
-            <li>Crie uma credencial → "Chave de API"</li>
+            <li>Crie uma credencial → “Chave de API”</li>
             <li>Cole a chave abaixo</li>
           </ol>
           <label class="field"><span class="field__label">API Key</span>
-            <input class="input" id="apiKey" name="apiKey" type="text" placeholder="Cole sua API Key aqui" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+            <input class="input" id="apiKey" name="apiKey" type="text" autocomplete="off" placeholder="AIza…" autocapitalize="off" autocorrect="off" spellcheck="false" required />
           </label>
         </section>
         <section class="setup__section">
@@ -297,10 +297,10 @@ function renderSetup() {
             <li>Cole abaixo (em cada aparelho)</li>
           </ol>
           <label class="field"><span class="field__label">Token do GitHub</span>
-            <input class="input" id="gistToken" type="password" placeholder="ghp_…" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            <input class="input" id="gistToken" name="gistToken" type="password" autocomplete="off" placeholder="ghp_…" autocapitalize="off" autocorrect="off" spellcheck="false" />
           </label>
         </section>
-        <button class="btn btn--primary btn--block" type="submit">Começar</button>
+        <button class="btn btn--primary btn--block" type="submit">Salvar e começar</button>
       </form>
     </div>`;
 }
@@ -310,7 +310,7 @@ function renderTop() {
   return `
     <header class="top">
       <button class="icon-btn back" data-action="back" aria-label="Voltar para os canais">${I.back}</button>
-      <h1 class="brand"><span class="brand__logo">${I.play}</span>FlowPlayer</h1>
+      <h1 class="brand" translate="no"><span class="brand__logo">${I.play}</span>FlowPlayer</h1>
       <h1 class="top__title">${esc(ch?.name || "")}</h1>
       <nav class="tabs" aria-label="Seções">
         <button class="tab" data-action="tab" data-tab="videos" ${S.tab === "videos" ? 'aria-current="page"' : ""}>${I.videos}<span>Vídeos</span></button>
@@ -331,7 +331,7 @@ function renderApp() {
   return `
     <div class="app" data-view="${view}">
       ${renderTop()}
-      <main class="main">${S.tab === "videos" ? renderVideosTab() : renderCourses()}</main>
+      <main class="main" id="main">${S.tab === "videos" ? renderVideosTab() : renderCourses()}</main>
       ${dock}
     </div>`;
 }
@@ -393,7 +393,7 @@ const chUrl = (ch) => ch.channelId ? `https://www.youtube.com/channel/${encodeUR
 
 function ago(t) {
   const m = Math.round((now() - t) / 60000);
-  return m < 1 ? "agora" : m < 60 ? `há ${m} min` : `há ${Math.floor(m / 60)} h`;
+  return m < 1 ? "agora" : m < 60 ? `há ${m}\u00a0min` : `há ${Math.floor(m / 60)}\u00a0h`;
 }
 
 function renderDetail() {
@@ -413,7 +413,7 @@ function renderDetail() {
         <a class="btn" href="${chUrl(ch)}" target="_blank" rel="noopener noreferrer">${I.external}Abrir canal</a>
       </div>
     </div>
-    ${cached ? `<p class="notice notice--info">Atualizado ${ago(cached.t)} · cache de 6 h</p>` : ""}
+    ${cached ? `<p class="notice notice--info">Atualizado ${ago(cached.t)} · cache de 6&nbsp;h</p>` : ""}
     ${S.error && S.errorKey === k ? `<p class="notice notice--error" role="alert">${esc(S.error)}</p>` : ""}
     ${body}`;
 }
@@ -423,7 +423,7 @@ function renderVideo(v) {
   return `
     <li class="video ${w ? "is-watched" : ""}">
       <a class="video__link" href="https://www.youtube.com/watch?v=${encodeURIComponent(v.id)}" target="_blank" rel="noopener noreferrer">
-        <span class="video__thumb">${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy" />` : ""}</span>
+        <span class="video__thumb">${v.thumb ? `<img src="${esc(v.thumb)}" alt="" width="320" height="180" loading="lazy" />` : ""}</span>
         <span class="video__body">
           <span class="video__title">${esc(v.title)}</span>
           <span class="video__meta"><time datetime="${esc(v.published)}">${FP.relDate(v.published)}</time>${curCh().type === "search" ? ` · ${esc(v.channel)}` : ""}</span>
@@ -449,7 +449,7 @@ function renderCourses() {
             <div class="course">
               <div class="course__name">${esc(c.name)}${cur && p.courses.length > 1 && ci === r.c ? " · atual" : ""}</div>
               <label class="field"><span class="field__label">Onde parei</span>
-                <input class="input" type="text" data-course="${esc(courseKey(p, c))}" value="${esc(lessonOf(p, c))}" placeholder="Ex.: Módulo 3, aula 2" autocomplete="off" />
+                <input class="input" type="text" name="lesson" data-course="${esc(courseKey(p, c))}" value="${esc(lessonOf(p, c))}" placeholder="Ex.: Módulo 3, aula 2…" autocomplete="off" />
               </label>
             </div>`).join("")}
           <div class="plat__actions">
@@ -476,15 +476,15 @@ function openSettings() {
         <button class="icon-btn" type="button" data-action="close-settings" aria-label="Fechar">${svg('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
       </div>
       <label class="field"><span class="field__label">YouTube API Key</span>
-        <input class="input" id="apiKey" type="text" value="${esc(config.apiKey)}" autocapitalize="off" autocorrect="off" spellcheck="false" required />
+        <input class="input" id="apiKey" name="apiKey" type="text" autocomplete="off" value="${esc(config.apiKey)}" autocapitalize="off" autocorrect="off" spellcheck="false" required />
       </label>
       <label class="field"><span class="field__label">Token do GitHub (sincronização)</span>
-        <input class="input" id="gistToken" type="password" value="${esc(config.gistToken || "")}" placeholder="ghp_… (vazio = só neste aparelho)" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        <input class="input" id="gistToken" name="gistToken" type="password" autocomplete="off" value="${esc(config.gistToken || "")}" placeholder="ghp_…" autocapitalize="off" autocorrect="off" spellcheck="false" />
       </label>
       <p class="hint">Token clássico só com o escopo <strong>gist</strong> — <a class="link" href="${TOKEN_URL}" target="_blank" rel="noopener">criar token</a>. Fica só neste aparelho.</p>
       <p class="status-line" id="sync-status" data-state="${sync.state}" role="status">${esc(syncStatusText())}</p>
       <div class="sheet__actions">
-        <button class="btn btn--primary" type="submit">Salvar</button>
+        <button class="btn btn--primary" type="submit">Salvar ajustes</button>
         <button class="btn" type="button" data-action="sync-now" ${config.gistToken ? "" : "disabled"}>Sincronizar agora</button>
         <button class="btn" type="button" data-action="close-settings">Fechar</button>
       </div>

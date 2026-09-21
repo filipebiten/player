@@ -80,9 +80,11 @@ t("relDate em pt-BR", () => {
   assert.equal(FP.relDate(iso(0), now), "hoje");
   assert.equal(FP.relDate(iso(1), now), "ontem");
   assert.equal(FP.relDate(iso(3), now), "há 3 dias");
+  assert.equal(FP.relDate(iso(7), now), "semana passada");
   assert.equal(FP.relDate(iso(14), now), "há 2 semanas");
   assert.equal(FP.relDate(iso(60), now), "há 2 meses");
-  assert.equal(FP.relDate(iso(400), now), "há 1 ano");
+  assert.equal(FP.relDate(iso(400), now), "ano passado");
+  assert.equal(FP.relDate(new Date(now + 3600000).toISOString(), now), "hoje"); // relógio adiantado
 });
 
 t("cache de 6h", () => {
