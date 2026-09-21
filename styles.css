@@ -94,7 +94,7 @@ svg { display: block; flex-shrink: 0; }
 .top__title { flex: 1; min-width: 0; font-size: var(--fs-l); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .top__spacer { flex: 1; }
 .top__actions { display: flex; align-items: center; margin-left: auto; }
-.sync { display: flex; align-items: center; gap: var(--s1); font-size: var(--fs-xs); color: var(--text-muted); min-height: 44px; padding: 0 var(--s2); border-radius: var(--radius-s); }
+.sync { display: flex; background: none; border: 0; align-items: center; gap: var(--s1); font-size: var(--fs-xs); color: var(--text-muted); min-height: 44px; padding: 0 var(--s2); border-radius: var(--radius-s); }
 .sync svg { width: 18px; height: 18px; }
 .sync span { display: none; }
 .sync[data-state="syncing"] { color: var(--accent); }

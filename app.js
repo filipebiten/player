@@ -288,6 +288,18 @@ function renderSetup() {
             <input class="input" id="apiKey" name="apiKey" type="text" placeholder="Cole sua API Key aqui" autocapitalize="off" autocorrect="off" spellcheck="false" required />
           </label>
         </section>
+        <section class="setup__section">
+          <h2>Sincronizar entre aparelhos <span class="hint">(opcional)</span></h2>
+          <p class="hint">O progresso fica num Gist secreto da sua conta do GitHub. Sem token, o app funciona só neste aparelho.</p>
+          <ol class="steps">
+            <li>Abra <a href="${TOKEN_URL}" target="_blank" rel="noopener">github.com → novo token (classic)</a></li>
+            <li>Deixe marcado só o escopo <strong>gist</strong> e gere o token</li>
+            <li>Cole abaixo (em cada aparelho)</li>
+          </ol>
+          <label class="field"><span class="field__label">Token do GitHub</span>
+            <input class="input" id="gistToken" type="password" placeholder="ghp_…" autocapitalize="off" autocorrect="off" spellcheck="false" />
+          </label>
+        </section>
         <button class="btn btn--primary btn--block" type="submit">Começar</button>
       </form>
     </div>`;
@@ -305,12 +317,12 @@ function renderTop() {
         <button class="tab" data-action="tab" data-tab="courses" ${S.tab === "courses" ? 'aria-current="page"' : ""}>${I.courses}<span>Cursos</span></button>
       </nav>
       <div class="top__spacer"></div>
-      <div class="top__actions">
-        ${syncIndicator()}
-        <button class="icon-btn" data-action="settings" aria-label="Ajustes">${I.settings}</button>
-      </div>
+      <div class="top__actions">${actionsHtml()}</div>
     </header>`;
 }
+
+const actionsHtml = () =>
+  `${syncIndicator()}<button class="icon-btn" data-action="settings" aria-label="Ajustes">${I.settings}</button>`;
 
 function renderApp() {
   const view = S.tab === "courses" ? "courses" : S.view;
@@ -466,19 +478,130 @@ function openSettings() {
       <label class="field"><span class="field__label">YouTube API Key</span>
         <input class="input" id="apiKey" type="text" value="${esc(config.apiKey)}" autocapitalize="off" autocorrect="off" spellcheck="false" required />
       </label>
+      <label class="field"><span class="field__label">Token do GitHub (sincronização)</span>
+        <input class="input" id="gistToken" type="password" value="${esc(config.gistToken || "")}" placeholder="ghp_… (vazio = só neste aparelho)" autocapitalize="off" autocorrect="off" spellcheck="false" />
+      </label>
+      <p class="hint">Token clássico só com o escopo <strong>gist</strong> — <a class="link" href="${TOKEN_URL}" target="_blank" rel="noopener">criar token</a>. Fica só neste aparelho.</p>
+      <p class="status-line" id="sync-status" data-state="${sync.state}" role="status">${esc(syncStatusText())}</p>
       <div class="sheet__actions">
         <button class="btn btn--primary" type="submit">Salvar</button>
-        <button class="btn" type="button" data-action="close-settings">Cancelar</button>
+        <button class="btn" type="button" data-action="sync-now" ${config.gistToken ? "" : "disabled"}>Sincronizar agora</button>
+        <button class="btn" type="button" data-action="close-settings">Fechar</button>
       </div>
     </form>`;
   dlg().showModal();
 }
 
 // ============================================================
-// SYNC (Gist) — implementado na fase 5
+// SYNC — Gist secreto (progresso). Token clássico, escopo "gist".
+// Merge por chave com timestamp (lib.js): dois aparelhos nunca se sobrescrevem.
 // ============================================================
-function syncIndicator() { return ""; }
-function scheduleSync() {}
+const GH = "https://api.github.com";
+const GIST_FILE = "flowplayer-progress.json";
+const TOKEN_URL = "https://github.com/settings/tokens/new?scopes=gist&description=FlowPlayer";
+const sync = { state: config.gistToken ? "idle" : "off", msg: "", at: 0, timer: 0, running: false, again: false };
+
+async function gh(path, opts = {}) {
+  const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${config.gistToken}` };
+  if (opts.body) headers["Content-Type"] = "application/json";
+  // no-cache: o GitHub serve GET de gist com max-age=60; sem isso o outro aparelho lê dado velho
+  const r = await fetch(GH + path, { cache: "no-cache", ...opts, headers });
+  if (!r.ok) { const e = new Error(`GitHub ${r.status}`); e.status = r.status; throw e; }
+  return r.json();
+}
+
+// Vários gists com o mesmo arquivo (dois aparelhos criaram juntos): todos escolhem o mais antigo.
+async function findGist() {
+  let best = null;
+  for (let page = 1; page <= 5; page++) {
+    const list = await gh(`/gists?per_page=100&page=${page}`);
+    for (const g of list) if (g.files?.[GIST_FILE] && (!best || g.created_at < best.created_at)) best = g;
+    if (list.length < 100) break;
+  }
+  return best?.id || "";
+}
+
+async function readRemote(id) {
+  const f = (await gh(`/gists/${id}`)).files?.[GIST_FILE];
+  if (!f) return null;
+  const text = f.truncated ? await (await fetch(f.raw_url)).text() : f.content;
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+const saveConfig = () => store.set("fp-config", config);
+
+async function syncNow() {
+  if (!config.gistToken) return;
+  if (sync.running) { sync.again = true; return; }
+  sync.running = true; setSync("syncing");
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        if (!config.gistId) { config.gistId = await findGist(); saveConfig(); }
+        const remote = config.gistId ? await readRemote(config.gistId) : null;
+
+        // do merge ao corpo do PATCH não há await: marcações feitas durante a rede não se perdem
+        const before = JSON.stringify(progress);
+        progress = FP.pruneProgress(FP.mergeProgress(progress, remote), now());
+        const body = JSON.stringify(progress);
+        store.set("fp-progress", progress);
+        const changed = body !== before;
+
+        if (!remote || JSON.stringify(FP.mergeProgress(remote, null)) !== body) {
+          const files = { [GIST_FILE]: { content: body } };
+          if (config.gistId) await gh(`/gists/${config.gistId}`, { method: "PATCH", body: JSON.stringify({ files }) });
+          else {
+            const g = await gh("/gists", { method: "POST", body: JSON.stringify({ description: "FlowPlayer — progresso (não apague)", public: false, files }) });
+            config.gistId = g.id; saveConfig();
+          }
+        }
+        sync.at = now(); setSync("ok");
+        if (changed && !document.activeElement?.matches("#app input")) render();
+        break;
+      } catch (e) {
+        if (e.status === 404 && config.gistId && attempt === 0) { config.gistId = ""; saveConfig(); continue; } // gist apagado
+        throw e;
+      }
+    }
+  } catch (e) {
+    setSync("error",
+      e.status === 401 ? "Token inválido ou expirado."
+      : e.status === 403 ? "GitHub recusou: o token precisa do escopo gist (ou limite de requisições)."
+      : e instanceof TypeError ? "Sem conexão. Sincroniza quando voltar."
+      : e.message);
+  }
+  sync.running = false;
+  if (sync.again) { sync.again = false; syncNow(); }
+}
+
+// Depois de cada marcação: espera 2s de sossego e sincroniza
+function scheduleSync() {
+  if (!config.gistToken) return;
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(syncNow, 2000);
+}
+
+function setSync(state, msg = "") {
+  sync.state = state; sync.msg = msg;
+  const bar = document.querySelector(".top__actions");
+  if (bar) bar.innerHTML = actionsHtml();
+  const line = document.getElementById("sync-status");
+  if (line) { line.dataset.state = state; line.textContent = syncStatusText(); }
+}
+
+function syncStatusText() {
+  if (!config.gistToken) return "Sem token: o progresso fica só neste aparelho.";
+  if (sync.state === "syncing") return "Sincronizando…";
+  if (sync.state === "error") return sync.msg;
+  if (sync.state === "ok") return `Sincronizado às ${new Date(sync.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.`;
+  return "Token salvo. Ainda não sincronizou.";
+}
+
+function syncIndicator() {
+  if (!config.gistToken) return "";
+  const label = { idle: "Sincronização", syncing: "Sincronizando…", ok: "Sincronizado", error: "Erro de sincronização" }[sync.state];
+  return `<button class="sync" data-action="settings" data-state="${sync.state}" aria-label="${esc(label + (sync.msg ? ": " + sync.msg : ""))}">${sync.state === "error" ? I.alert : I.cloud}<span>${label}</span></button>`;
+}
 
 // ============================================================
 // EVENTOS
@@ -500,6 +623,7 @@ document.addEventListener("click", (e) => {
     case "next-course": nextCourse(); break;
     case "settings": openSettings(); break;
     case "close-settings": dlg().close(); break;
+    case "sync-now": saveSettingsFields(el.closest("form")); syncNow(); break;
   }
 });
 
@@ -507,16 +631,26 @@ document.addEventListener("submit", (e) => {
   const form = e.target.closest("[data-form]");
   if (!form) return;
   e.preventDefault();
-  const key = form.querySelector("#apiKey").value.trim();
-  if (!key) return;
   const first = !config.apiKey;
-  config = { ...config, apiKey: key };
-  store.set("fp-config", config);
+  if (!saveSettingsFields(form)) return;
   if (form.dataset.form === "settings") dlg().close();
   S.sel = firstOpen();
   render();
   if (first || form.dataset.form === "settings") loadChannel(curCh());
+  syncNow();
 });
+
+// Lê API Key + token do formulário (setup ou ajustes). Trocar o token zera o gistId (pode ser outra conta).
+function saveSettingsFields(form) {
+  const apiKey = form.querySelector("#apiKey").value.trim();
+  const gistToken = form.querySelector("#gistToken").value.trim();
+  if (!apiKey) return false;
+  if (gistToken !== (config.gistToken || "")) config.gistId = "";
+  config = { ...config, apiKey, gistToken };
+  saveConfig();
+  sync.state = gistToken ? "idle" : "off";
+  return true;
+}
 
 document.addEventListener("change", (e) => {
   const key = e.target.dataset?.course;
@@ -550,7 +684,9 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !config.apiKey) return;
   const w = FP.weekIndexForDate(new Date());
   if (w !== todayWeek) { todayWeek = w; setWeek(w); }
+  syncNow(); // voltou pro app: puxa o que foi marcado no outro aparelho
 });
+window.addEventListener("online", syncNow);
 
 // ============================================================
 // INIT
@@ -558,3 +694,4 @@ document.addEventListener("visibilitychange", () => {
 S.sel = firstOpen();
 render();
 if (config.apiKey && S.tab === "videos") loadChannel(curCh());
+syncNow();
