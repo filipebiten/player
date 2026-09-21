@@ -2,6 +2,14 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.1.2 — 2026-09-21
+
+Auditoria `pwa-development`.
+
+### Corrigido
+- **Manifest completo:** `id` (igual ao `start_url`, então a identidade do app instalado não muda), `scope` e `lang: pt-BR`; ícones declarados com `purpose` (`any` e `maskable`). O `icon-512.png` já servia de maskable (fundo opaco `#0B0E14`, círculo âmbar dentro da zona segura de 80%), então não há arquivo novo.
+- Verificado offline: `index.html` (o `start_url`), `index.html?source=pwa` e a raiz abrem pelo service worker.
+
 ## 2.1.1 — 2026-09-21
 
 Achados do `ux-audit` no app publicado (390 e 1440 px, axe 0 violações, console e CLS limpos).
