@@ -132,10 +132,12 @@ async function searchVids(query, max = 10, pageToken = "") {
   };
 }
 
+const keyErr = (e) => e.reason === "keyInvalid" || /API key/i.test(e.message);
+
 function errMsg(e) {
   if (e.reason === "quotaExceeded" || e.reason === "rateLimitExceeded")
     return "A cota diária da API do YouTube acabou. Volta amanhã; o que está em cache continua aparecendo.";
-  if (e.reason === "keyInvalid" || /API key/i.test(e.message)) return "API Key inválida. Confira em Ajustes.";
+  if (keyErr(e)) return "API Key inválida. Confira em Ajustes.";
   if (e instanceof TypeError) return "Sem conexão com o YouTube.";
   return e.message;
 }
@@ -158,7 +160,7 @@ async function loadChannel(ch, force = false) {
     store.set("fp-vidcache", vidCache);
   } catch (e) {
     S.error = errMsg(e) + (cached ? " Mostrando a última lista salva." : "");
-    S.errorKey = k;
+    S.errorKey = k; S.errorKeyBad = keyErr(e);
   }
   S.loadingKey = "";
   render();
@@ -176,7 +178,7 @@ async function loadMore(ch) {
     c.next = r.next;
     store.set("fp-vidcache", vidCache);
   } catch (e) {
-    S.error = errMsg(e); S.errorKey = k;
+    S.error = errMsg(e); S.errorKey = k; S.errorKeyBad = keyErr(e);
   }
   S.moreKey = "";
   render();
@@ -454,7 +456,7 @@ function renderDetail() {
       </div>
     </div>
     ${cached ? `<p class="notice notice--info">Atualizado ${ago(cached.t)} · cache de 6&nbsp;h</p>` : ""}
-    ${S.error && S.errorKey === k ? `<p class="notice notice--error" role="alert">${esc(S.error)}</p>` : ""}
+    ${S.error && S.errorKey === k ? `<div class="notice notice--error" role="alert"><p>${esc(S.error)}</p>${S.errorKeyBad ? '<button class="btn notice__btn" data-action="settings">Abrir Ajustes</button>' : ""}</div>` : ""}
     ${body}
     ${more}`;
 }

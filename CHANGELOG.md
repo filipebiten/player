@@ -2,6 +2,14 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.1.1 — 2026-09-21
+
+Achados do `ux-audit` no app publicado (390 e 1440 px, axe 0 violações, console e CLS limpos).
+
+### Corrigido
+- **`/favicon.ico` dava 404** em navegador de computador (só existia `apple-touch-icon`). Agora há `<link rel="icon">`.
+- **Erro "API Key inválida" era beco sem saída:** só texto. Agora a caixa de erro tem o botão **Abrir Ajustes** (44 px de altura).
+
 ## 2.1.0 — 2026-09-21
 
 ### Adicionado

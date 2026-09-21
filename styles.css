@@ -195,6 +195,7 @@ h1, h2 { text-wrap: balance; }
 .notice { margin: 0 var(--s4) var(--s3); padding: var(--s3) var(--s4); border-radius: var(--radius-s); font-size: var(--fs-s); }
 .notice--error { background: rgba(248,113,113,.12); border: 1px solid var(--error); color: var(--error); }
 .notice--info { background: var(--surface); color: var(--text-muted); border: 1px solid var(--border); }
+.notice__btn { margin-top: var(--s3); min-height: 44px; }
 .empty { padding: var(--s6) var(--s4); text-align: center; color: var(--text-muted); }
 .empty--lg { padding: var(--s7) var(--s4); }
 

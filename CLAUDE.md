@@ -178,12 +178,14 @@ Atualizado em 2026-09-21, logo depois de publicar a **v2.1.0** (`d22e933` em `ma
 - Testado só com mocks (sem chave/token reais): sync, API do YouTube, offline, semana por dia do mês, axe (0 violações), alvos de toque.
 
 ### Pendências, em ordem
-1. **BUG ABERTO — sincronização computador ↔ celular não funcionou na v2.0.** Causa **não confirmada**. Evidência: a conta do Filipe tinha **0 gists** (nenhum aparelho conseguiu criar o gist); CORS e CSP de produção estão ok; o caminho "Ajustes → colar token → Salvar" funciona nos testes com token válido. Hipóteses: token nunca colado em um ou nos dois aparelhos (quem tinha API Key da v1 nunca via a tela inicial com o campo do token); token fine-grained; token sem escopo `gist`; token expirado. **Próximo passo:** pedir ao Filipe, nos dois aparelhos, o texto da linha de status em **Ajustes** e o código "Gist: xxxxxxx…" da v2.1 (e se a nuvem do topo está riscada, normal ou vermelha). Só depois de saber a causa, corrigir (skill `diagnose` / `superpowers:systematic-debugging`). Conferir com `gh api /gists --jq length`.
-2. **Rodar `ux-audit`** (prioridade pedida pelo Filipe) no app **publicado** em 390 px e 1440 px: interação real, axe, orçamento de performance, cenários. Corrigir o que achar e registrar no CHANGELOG.
+1. ~~**BUG DE SYNC**~~ **RESOLVIDO em 2026-09-21.** Causa: token do GitHub nunca colado nos aparelhos (0 gists na conta). Depois de colar o token (classic, escopo `gist`) nos dois, o gist `99d8ad5d…` foi criado e o progresso sincronizou iPhone ↔ Mac. Detalhe: a API Key do YouTube **não** sincroniza, é por aparelho; no Mac deu "API Key inválida" até colar a mesma chave do iPhone. Ideia em aberto: mensagem de erro distinguir `keyInvalid` de referrer bloqueado.
+2. ~~**`ux-audit`**~~ **FEITO em 2026-09-21** (site publicado, 390 e 1440 px; veredito Conditional Pass). Corrigido na v2.1.1: favicon 404 e botão "Abrir Ajustes" no erro de API Key. Não medido: LCP/INP e throttle 3G. **Cuidado ao testar:** `[data-action=toggle-done-cur]` existe duplicado (um escondido no mobile); `querySelector` pega o escondido, use o visível (`offsetParent !== null`) ou clique por coordenada.
 3. **Rodar `pwa-development`**: manifest, ícone maskable, splash e ícone do iOS, service worker (estratégia, atualização), instalação. Conferir se `start_url` `./index.html` funciona com o cache do `sw.js`.
 4. **App treino (treino-hibrido) e app financeiro (Bolso · Bittencourt):** aplicar `ux-audit`, `pwa-development`, `mobile-app-ui-design`, `harmonize`, `comprehensive-test`, `verify` (o Filipe quer ver isso "depois do FlowPlayer").
 
 ### Ideias em aberto (só se o Filipe pedir)
+- **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage` (no Chrome do Filipe há `pp_token`, `pp_owner`, `pp_repo` e Firebase ao lado do `fp-config`). Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
+- Mensagem de erro que separe `keyInvalid` de referrer bloqueado (não verificado o formato real da resposta do Google).
 - "Próximo não assistido" pelo **mais antigo** em vez do mais novo (hoje é o mais novo entre os carregados).
 - Cachear thumbnails no service worker.
 - Confirmar num aparelho real que o "Mostrar mais" e o offline funcionam no iPhone.
