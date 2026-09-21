@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 if [ "$1" = "stop" ]; then pkill -f "http.server 876[57]"; pkill -f mock_gist.py; exit 0; fi
 ROOT=../..
 rm -rf .site && mkdir .site
-cp $ROOT/index.html $ROOT/styles.css $ROOT/app.js $ROOT/lib.js $ROOT/data.js $ROOT/manifest.json $ROOT/icon-192.png $ROOT/icon-512.png .site/
+cp $ROOT/index.html $ROOT/styles.css $ROOT/app.js $ROOT/lib.js $ROOT/data.js $ROOT/sw.js $ROOT/manifest.json $ROOT/icon-192.png $ROOT/icon-512.png .site/
 sed -i.bak "s#connect-src https://www.googleapis.com#connect-src http://localhost:8766 https://www.googleapis.com#" .site/index.html && rm .site/index.html.bak
 : > mock_gist.log
 (python3 -m http.server 8765 -d $ROOT >/dev/null 2>&1 &)

@@ -1,7 +1,8 @@
 import json, sys, time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 DB = {}
-MODE = {"quota": False}   # id -> {"created_at":..., "files": {name: {"content": str}}}
+MODE = {"quota": False}
+TOKENS = {"TESTTOKEN": "gist", "NOGIST": "repo"}   # token -> X-OAuth-Scopes   # id -> {"created_at":..., "files": {name: {"content": str}}}
 LOG = open("mock_gist.log", "a", buffering=1)
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -11,10 +12,13 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
         self.send_header("Content-Type", "application/json")
+        tok = (self.headers.get("Authorization") or "").replace("Bearer ", "")
+        if tok in TOKENS: self.send_header("X-OAuth-Scopes", TOKENS[tok])
+        self.send_header("Access-Control-Expose-Headers", "X-OAuth-Scopes")
         self.end_headers()
         if obj is not None: self.wfile.write(json.dumps(obj).encode())
     def _auth(self):
-        ok = self.headers.get("Authorization") == "Bearer TESTTOKEN"
+        ok = (self.headers.get("Authorization") or "").replace("Bearer ", "") in TOKENS
         if not ok: self._send(401, {"message": "Bad credentials"})
         return ok
     def _body(self):
@@ -29,7 +33,9 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, {"items": [{"id": "UCmock", "contentDetails": {"relatedPlaylists": {"uploads": "UUmock"}}}]})
         if self.path.startswith("/youtube/v3/playlistItems"):
             it = lambda t, v, d: {"snippet": {"title": t, "resourceId": {"videoId": v}, "publishedAt": d, "channelTitle": "Mock", "thumbnails": {"medium": {"url": thumb}}}}
-            return self._send(200, {"items": [it("Video real 1 <b>x</b>", "vid1", "2026-09-20T10:00:00Z"), it("Private video", "vidP", "2026-09-19T10:00:00Z"), it("Video real 2", "vid2", "2026-09-10T10:00:00Z")]})
+            if "pageToken=P2" in self.path:
+                return self._send(200, {"items": [it("Video antigo 3", "vid3", "2026-08-01T10:00:00Z"), it("Video antigo 4", "vid4", "2026-07-01T10:00:00Z")]})
+            return self._send(200, {"nextPageToken": "P2", "items": [it("Video real 1 <b>x</b>", "vid1", "2026-09-20T10:00:00Z"), it("Private video", "vidP", "2026-09-19T10:00:00Z"), it("Video real 2", "vid2", "2026-09-10T10:00:00Z")]})
         if self.path.startswith("/youtube/v3/search"):
             return self._send(200, {"items": [{"id": {"videoId": "vs1"}, "snippet": {"title": "Resultado de busca", "publishedAt": "2026-09-20T10:00:00Z", "channelTitle": "Outro canal", "thumbnails": {"medium": {"url": thumb}}}}]})
         self._send(404, {})

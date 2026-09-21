@@ -4,7 +4,7 @@ reset(){ python3 -c "import urllib.request as u;u.urlopen(u.Request('http://loca
 $P open http://localhost:8767/index.html --init-script redirect.js >/dev/null; $P set viewport 390 844 >/dev/null; $P eval "$(cat seed.js)" >/dev/null; $P reload >/dev/null; $P wait 1000 >/dev/null
 $P errors --clear >/dev/null 2>&1
 echo "== A. sem token (config só com apiKey)"; : > mock_gist.log; setcfg "{apiKey:'TEST'}"
-echo "requests gist: $(grep -c gists mock_gist.log) | .sync presente: $($P eval '!!document.querySelector(".sync")')"
+echo "requests gist: $(grep -c gists mock_gist.log) | indicador: $($P eval 'document.querySelector(".sync")?.dataset.state') (esperado off)"
 echo "== B. token inválido"; setcfg "{apiKey:'TEST',gistToken:'BAD'}"
 echo "indicador: $($P eval 'document.querySelector(".sync")?.dataset.state') | aria: $($P eval 'document.querySelector(".sync")?.getAttribute("aria-label")')"
 echo "== C. gist apagado no servidor (gistId velho)"; reset; : > mock_gist.log; setcfg "{apiKey:'TEST',gistToken:'TESTTOKEN',gistId:'g1'}"

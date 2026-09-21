@@ -2,6 +2,19 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.1.0 — 2026-09-21
+
+### Adicionado
+- **Mostrar mais vídeos:** botão no fim da lista do canal busca mais 10 vídeos por vez (1 unidade de cota cada; canal de busca custa 100). A lista estendida fica no cache.
+- **Próximo não assistido:** botão que abre no YouTube o vídeo mais novo que você ainda não marcou.
+- **Service worker:** o app abre offline (interface e última lista de vídeos). Network-first: sempre pega a versão nova quando há rede.
+- **Validação do token do Gist ao salvar:** mensagem clara para token fine-grained, inválido/expirado ou sem o escopo `gist`.
+- **Indicador de sincronização sempre visível:** nuvem riscada quando desligada (toque abre Ajustes). Em Ajustes: id curto do gist e contagem de marcações neste aparelho, para comparar os dois dispositivos.
+
+### Corrigido
+- Sincronização: na v2.0 nenhum aparelho chegou a criar o gist (a conta tinha 0 gists) e o app não dava nenhuma pista, porque quem já tinha a API Key nunca via a tela inicial com o campo do token. CORS e CSP de produção foram verificados e estão corretos; a causa exata nos aparelhos do Filipe dependia do que o Ajustes mostrava, e agora o app mostra.
+- Botão de sincronização com 34 px de largura no celular (agora 44 px).
+
 ## 2.0.0 — 2026-09-21
 
 Reformulação focada em usabilidade no celular (iPhone, PWA) e no computador.

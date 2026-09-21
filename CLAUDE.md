@@ -24,6 +24,7 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 | `lib.js` | Lógica **pura** (sem DOM nem rede): semana pelo dia, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
 | `app.js` | Estado, chamadas à API do YouTube, cache, progresso, sync do Gist, render (`innerHTML` + delegação de eventos por `data-action`), atalhos. |
 | `styles.css` | Tokens, componentes e layout. Mobile primeiro; duas colunas a partir de `min-width: 900px`. |
+| `sw.js` | Service worker: o app abre offline. Network-first (ver "Service worker"). |
 | `manifest.json`, `icon-*.png` | PWA. Não mexer sem motivo. |
 | `tests/lib.test.mjs` | Testes de `lib.js`: `node tests/lib.test.mjs`. |
 | `tests/e2e/` | Ambiente e cenários de teste no navegador (ver "Como testar"). |
@@ -45,7 +46,7 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 |---|---|---|
 | `fp-config` | `{apiKey, gistToken, gistId}` | **Nunca** |
 | `fp-progress` | progresso (formato abaixo) | Sim, via Gist |
-| `fp-vidcache` | `{ "<channelKey>": {t, vids:[{id,title,thumb,published,channel}]} }` | Não |
+| `fp-vidcache` | `{ "<channelKey>": {t, vids:[{id,title,thumb,published,channel}], next, uploads} }` — `next` = pageToken da próxima página (`""` = acabou), `uploads` = playlist de envios. Entradas sem `next` (v2.0) são descartadas no load. | Não |
 | `fp-chid` | `{ "<handle>": "<channelId>" }` (não expira) | Não |
 | `fp-ui` | `{tab}` | Não |
 | `fp-state` | **legado**: a v1 guardava a API Key aqui. Migrado para `fp-config` e apagado no primeiro load. | — |
@@ -77,13 +78,18 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 - Fluxo de `syncNow`: lê o remoto → **faz o merge e monta o corpo do PATCH sem nenhum `await` no meio** (marcações feitas durante a rede não se perdem) → só faz `PATCH` se o remoto for diferente. Gist apagado (404) → procura/cria de novo. Os `GET` usam `cache: "no-cache"` porque o GitHub serve gist com `max-age=60` e o outro aparelho leria dado velho.
 - Limite conhecido: dois aparelhos gravando no mesmo segundo podem sobrescrever um ao outro no Gist; cada um mantém o local e a próxima sincronização repõe. Aceito.
 - A API Key **nunca** vai para o Gist.
+- **Validação ao salvar o token** (`checkToken`): recusa na hora token fine-grained (`github_pat_…`, que não acessa gists), token inválido (401) e token sem o escopo `gist` (lê o cabeçalho `X-OAuth-Scopes`, exposto pelo CORS do GitHub). A mensagem aparece dentro do formulário. Sem conexão para validar: salva e deixa o sync mostrar o erro depois.
+- **Indicador no topo:** nuvem riscada = sync desligado (sem token; toque abre Ajustes); nuvem = ok/sincronizando; alerta vermelho = erro (a mensagem está no `aria-label` e em Ajustes). Ajustes mostra também o id curto do gist e quantas marcações há **neste aparelho**: compare os dois aparelhos para ver se estão no mesmo gist.
+- Diagnóstico de campo: `gh api /gists --jq length` (0 = nenhum aparelho conseguiu criar o gist). Foi assim que se descobriu, na v2.0, que a sincronização nunca tinha rodado.
 
 ### Cache de vídeos
 - Por canal, **6 horas** (`FP.CACHE_TTL`), em `fp-vidcache`. Abrir um canal com cache fresco não gasta cota. Botão **Recarregar** (e tecla `R`) ignora o cache.
 - Erro (cota, rede) com cache velho: mostra a lista salva + aviso.
 - `channelId` resolvido a partir do handle fica em `fp-chid` para sempre (o fallback por `search` custa 100 unidades de cota).
 - Cota do YouTube: 10.000 unidades/dia. `channels` e `playlistItems` custam 1 cada. `search` custa 100 (só usado no canal do tipo `search`, "Andrea Vargas", e no fallback de handle).
-- Filtra vídeos "Private video" e "Deleted video". Traz 10 vídeos por canal.
+- Filtra vídeos "Private video" e "Deleted video". Traz 10 vídeos por canal na primeira carga.
+- **"Mostrar mais vídeos"** (`loadMore`): busca a próxima página (mais 10) usando `next` e `uploads` do cache (1 unidade de cota; no canal do tipo `search` custa 100) e **acrescenta** à lista em cache. Recarregar (ou cache vencido) volta para a primeira página.
+- **"Próximo não assistido"**: link (`<a>`, abre no app do YouTube) para o vídeo **mais novo ainda não marcado** entre os já carregados (a lista vem do mais novo para o mais antigo). Não marca nada sozinho.
 
 ### O que foi removido, e por quê
 - **Player embutido (YouTube IFrame API), controle de velocidade, "próximo vídeo" automático:** decisão do Filipe: clicar no vídeo abre o YouTube em nova aba (no iPhone, no app do YouTube). **Não reintroduzir.**
@@ -96,6 +102,13 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 - **Desktop (≥900 px):** duas colunas (`.split`): canais à esquerda, vídeos do canal à direita em grade de cartões. Abas viram navegação do topo. Sem largura máxima de 640 px.
 - **Atalhos** (só desktop; a legenda `.legend` some sem mouse): `J`/`K` canal, `Espaço` marcar canal concluído, `[` `]` semana, `R` recarregar, `1`/`2` abas.
 - Seleção de canal e tela atual **não** vão para a URL (o app deve abrir sempre na semana de hoje). Decisão consciente.
+
+### Service worker (`sw.js`)
+- **Network-first** para os arquivos do próprio site: com rede, sempre busca a versão nova e atualiza o cache; sem rede (ou se passar de 3 s), usa o cache. Por isso **não há versão para incrementar a cada publicação** (cache-first prenderia usuários na versão velha).
+- Fontes do Google: cache primeiro. APIs (YouTube, GitHub) **nunca** passam pelo service worker.
+- Pré-cache na instalação (`FILES` em `sw.js`): **se criar um arquivo novo na raiz que o app precisa, coloque-o em `FILES` e em `tests/e2e/setup.sh`** (a cópia de teste usa lista fixa).
+- A CSP tem `worker-src 'self'`. Registro em `app.js` (evento `load`).
+- Só o shell e os textos da lista funcionam offline; as thumbnails do YouTube não são cacheadas.
 
 ### Segurança
 - **Todo texto vindo de API/dados passa por `FP.escapeHtml` (`esc()`) antes de entrar em `innerHTML`.** Mantenha isso ao adicionar campos.
@@ -128,6 +141,8 @@ bash tap-targets.sh           # alvos de toque < 44 px (rode logo depois do ante
 bash sync.sh                  # 2 aparelhos (sessões "phone" e "desk"): marca num, aparece no outro
 bash sync-errors.sh           # sem token / token inválido / gist apagado / offline
 bash api.sh                   # busca YouTube: cache 6h, TTL, cota estourada, canal tipo busca, escape de HTML
+bash features.sh              # mostrar mais, próximo não assistido, validação do token, sync desligado, service worker offline
+bash setup-flow.sh            # primeira execução: tela inicial com/sem token
 ./setup.sh stop
 ```
 
@@ -148,6 +163,17 @@ Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
 - **`mobile-app-ui-design`**: uso com uma mão, alvos de toque, navegação inferior (princípios, é PWA em HTML e não app nativo).
 - **`web-design-guidelines`**: rodar no fim de qualquer mudança de UI (regras de acessibilidade, foco, formulários).
 - **`webapp-testing`** e **`agent-browser`**: testar em 390 e 1440 px antes de dar por pronto.
+- **`ux-audit`** e **`pwa-development`**: ver o Roadmap (prioridade).
+- `ui-ux-pro-max` também está instalada (banco de estilos/paletas/guidelines de UX).
 - Não usar `gsap`, `threejs` nem animação decorativa.
+
+## Roadmap
+
+**Prioridade (pedido do Filipe):** usar as skills **`ux-audit`** e **`pwa-development`** neste app.
+1. `ux-audit`: percorrer o app publicado como usuário real (390 px e 1440 px), com prova de interação, axe, orçamento de performance e bateria de cenários. Corrigir o que achar.
+2. `pwa-development`: revisar manifest, ícones (maskable), splash do iOS, service worker, instalação e atualização do PWA.
+3. Depois, aplicar as mesmas skills no **app treino** e no **app financeiro (Bolso)**.
+
+Ideias em aberto (não fazer sem o Filipe pedir): cachear thumbnails no service worker; opção de "mais antigo não assistido" no lugar do "mais novo".
 
 Fluxo que foi usado: `plan-phase` → `execute-phase` → `verify` → `harmonize` → `comprehensive-test` → `commit-phase`. Se algo quebrar, `diagnose` antes de sair corrigindo.

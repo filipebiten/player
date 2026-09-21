@@ -24,7 +24,8 @@ if (!config) {
   try { localStorage.removeItem("fp-state"); } catch {}
 }
 let progress = FP.mergeProgress(FP.emptyProgress(), store.get("fp-progress", null)); // sincroniza
-let vidCache = store.get("fp-vidcache", {}); // {channelKey: {t, vids}} — 6h
+// {channelKey: {t, vids, next, uploads}} — 6h; entradas da v2.0 (sem "next") são descartadas
+let vidCache = Object.fromEntries(Object.entries(store.get("fp-vidcache", {})).filter(([, c]) => "next" in c));
 let chIds = store.get("fp-chid", {});        // handle → channelId (não expira)
 let ui = store.get("fp-ui", { tab: "videos" });
 
@@ -36,7 +37,7 @@ const S = {
   week: FP.weekIndexForDate(new Date()),
   sel: 0,            // canal selecionado dentro da semana
   view: "list",      // celular: "list" | "channel" (no desktop as duas colunas aparecem sempre)
-  loadingKey: "",
+  loadingKey: "", moreKey: "",
   error: "", errorKey: "",
   listScroll: 0,
 };
@@ -88,33 +89,47 @@ async function resolveChannelId(ch) {
 
 const isPlayable = (i) => !/^(Private|Deleted) video$/.test(i.snippet.title);
 
-async function fetchChannelVids(channelId, max = 10) {
-  const cd = await ytGet("channels", { part: "contentDetails", id: channelId });
-  if (!cd.items?.length) return [];
-  const uploads = cd.items[0].contentDetails.relatedPlaylists.uploads;
+// Retorna {vids, next, uploads}. `uploads` (playlist de envios) é guardado no cache para o "Mostrar mais"
+// não precisar da chamada channels de novo; `next` é o pageToken da próxima página ("" = acabou).
+async function fetchChannelVids(channelId, max = 10, uploads = "", pageToken = "") {
+  if (!uploads) {
+    const cd = await ytGet("channels", { part: "contentDetails", id: channelId });
+    if (!cd.items?.length) return { vids: [], next: "", uploads: "" };
+    uploads = cd.items[0].contentDetails.relatedPlaylists.uploads;
+  }
+  const params = { part: "snippet", playlistId: uploads, maxResults: max };
+  if (pageToken) params.pageToken = pageToken;
+  const pd = await ytGet("playlistItems", params);
+  if (!pd.items) return { vids: [], next: "", uploads };
 
-  const pd = await ytGet("playlistItems", { part: "snippet", playlistId: uploads, maxResults: max });
-  if (!pd.items) return [];
-
-  return pd.items.filter(isPlayable).map((i) => ({
-    id: i.snippet.resourceId.videoId,
-    title: i.snippet.title,
-    thumb: i.snippet.thumbnails?.medium?.url || i.snippet.thumbnails?.default?.url,
-    published: i.snippet.publishedAt,
-    channel: i.snippet.channelTitle,
-  }));
+  return {
+    uploads,
+    next: pd.nextPageToken || "",
+    vids: pd.items.filter(isPlayable).map((i) => ({
+      id: i.snippet.resourceId.videoId,
+      title: i.snippet.title,
+      thumb: i.snippet.thumbnails?.medium?.url || i.snippet.thumbnails?.default?.url,
+      published: i.snippet.publishedAt,
+      channel: i.snippet.channelTitle,
+    })),
+  };
 }
 
-async function searchVids(query, max = 10) {
-  const d = await ytGet("search", { part: "snippet", q: query, type: "video", maxResults: max, order: "date" });
-  if (!d.items) return [];
-  return d.items.map((i) => ({
-    id: i.id.videoId,
-    title: i.snippet.title,
-    thumb: i.snippet.thumbnails?.medium?.url,
-    published: i.snippet.publishedAt,
-    channel: i.snippet.channelTitle,
-  }));
+async function searchVids(query, max = 10, pageToken = "") {
+  const params = { part: "snippet", q: query, type: "video", maxResults: max, order: "date" };
+  if (pageToken) params.pageToken = pageToken;
+  const d = await ytGet("search", params);
+  if (!d.items) return { vids: [], next: "" };
+  return {
+    next: d.nextPageToken || "",
+    vids: d.items.map((i) => ({
+      id: i.id.videoId,
+      title: i.snippet.title,
+      thumb: i.snippet.thumbnails?.medium?.url,
+      published: i.snippet.publishedAt,
+      channel: i.snippet.channelTitle,
+    })),
+  };
 }
 
 function errMsg(e) {
@@ -132,20 +147,38 @@ async function loadChannel(ch, force = false) {
   if (S.loadingKey === k) return;
   S.loadingKey = k; S.error = ""; render();
   try {
-    let vids;
-    if (ch.type === "search") vids = await searchVids(ch.query);
+    let r;
+    if (ch.type === "search") r = await searchVids(ch.query);
     else {
       const id = await resolveChannelId(ch);
       if (!id) throw new Error(`Canal não encontrado: ${ch.name}`);
-      vids = await fetchChannelVids(id);
+      r = await fetchChannelVids(id);
     }
-    vidCache[k] = { t: now(), vids };
+    vidCache[k] = { t: now(), vids: r.vids, next: r.next, uploads: r.uploads || "" };
     store.set("fp-vidcache", vidCache);
   } catch (e) {
     S.error = errMsg(e) + (cached ? " Mostrando a última lista salva." : "");
     S.errorKey = k;
   }
   S.loadingKey = "";
+  render();
+}
+
+// "Mostrar mais vídeos": próxima página do canal (1 unidade de cota; canal de busca custa 100).
+async function loadMore(ch) {
+  const k = FP.channelKey(ch), c = vidCache[k];
+  if (!c?.next || S.moreKey === k) return;
+  S.moreKey = k; S.error = ""; render();
+  try {
+    const r = ch.type === "search" ? await searchVids(ch.query, 10, c.next) : await fetchChannelVids(null, 10, c.uploads, c.next);
+    const seen = new Set(c.vids.map((v) => v.id));
+    c.vids = c.vids.concat(r.vids.filter((v) => !seen.has(v.id)));
+    c.next = r.next;
+    store.set("fp-vidcache", vidCache);
+  } catch (e) {
+    S.error = errMsg(e); S.errorKey = k;
+  }
+  S.moreKey = "";
   render();
 }
 
@@ -244,6 +277,7 @@ const I = {
   external: svg('<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
   next: svg('<path d="M5 5l7 7-7 7"/><path d="M13 5l7 7-7 7"/>'),
   cloud: svg('<path d="M7 18a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17 8.5a4.75 4.75 0 0 1 .5 9.5z"/>'),
+  cloudOff: svg('<path d="M7 18a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17 8.5a4.75 4.75 0 0 1 .5 9.5z"/><path d="M3 3l18 18"/>'),
   alert: svg('<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/>'),
 };
 
@@ -300,6 +334,7 @@ function renderSetup() {
             <input class="input" id="gistToken" name="gistToken" type="password" autocomplete="off" placeholder="ghp_…" autocapitalize="off" autocorrect="off" spellcheck="false" />
           </label>
         </section>
+        <p class="notice notice--error form-error" role="alert" hidden></p>
         <button class="btn btn--primary btn--block" type="submit">Salvar e começar</button>
       </form>
     </div>`;
@@ -404,10 +439,15 @@ function renderDetail() {
   else if (!vids.length) body = `<p class="empty empty--lg">${cached ? "Nenhum vídeo encontrado." : "Vídeos ainda não carregados."}</p>`;
   else body = `<ul class="videos">${vids.map(renderVideo).join("")}</ul>`;
 
+  const nextUnseen = vids.find((v) => !isWatched(v.id)); // lista vem do mais novo para o mais antigo
+  const more = cached?.next
+    ? `<div class="more"><button class="btn" data-action="more" ${S.moreKey === k ? "disabled" : ""}>${S.moreKey === k ? "Carregando…" : "Mostrar mais vídeos"}</button></div>` : "";
+
   return `
     <div class="detail__head">
       <h2 class="detail__name">${esc(ch.name)}</h2>
       <div class="detail__actions">
+        ${nextUnseen ? `<a class="btn" href="https://www.youtube.com/watch?v=${encodeURIComponent(nextUnseen.id)}" target="_blank" rel="noopener noreferrer">${I.play}Próximo não assistido</a>` : ""}
         ${doneButton()}
         <button class="btn" data-action="refresh" ${loading ? "disabled" : ""}>${I.refresh}Recarregar</button>
         <a class="btn" href="${chUrl(ch)}" target="_blank" rel="noopener noreferrer">${I.external}Abrir canal</a>
@@ -415,7 +455,8 @@ function renderDetail() {
     </div>
     ${cached ? `<p class="notice notice--info">Atualizado ${ago(cached.t)} · cache de 6&nbsp;h</p>` : ""}
     ${S.error && S.errorKey === k ? `<p class="notice notice--error" role="alert">${esc(S.error)}</p>` : ""}
-    ${body}`;
+    ${body}
+    ${more}`;
 }
 
 function renderVideo(v) {
@@ -483,6 +524,8 @@ function openSettings() {
       </label>
       <p class="hint">Token clássico só com o escopo <strong>gist</strong> — <a class="link" href="${TOKEN_URL}" target="_blank" rel="noopener">criar token</a>. Fica só neste aparelho.</p>
       <p class="status-line" id="sync-status" data-state="${sync.state}" role="status">${esc(syncStatusText())}</p>
+      <p class="hint">${esc(diagnostics())}</p>
+      <p class="notice notice--error form-error" role="alert" hidden></p>
       <div class="sheet__actions">
         <button class="btn btn--primary" type="submit">Salvar ajustes</button>
         <button class="btn" type="button" data-action="sync-now" ${config.gistToken ? "" : "disabled"}>Sincronizar agora</button>
@@ -589,6 +632,13 @@ function setSync(state, msg = "") {
   if (line) { line.dataset.state = state; line.textContent = syncStatusText(); }
 }
 
+// Para comparar aparelhos sem abrir o console: mesmo gist e contagens parecidas = sincronizando.
+function diagnostics() {
+  const w = Object.values(progress.watched).filter(FP.isOn).length;
+  const d = Object.values(progress.done).reduce((n, m) => n + Object.values(m).filter(FP.isOn).length, 0);
+  return `Gist: ${config.gistId ? config.gistId.slice(0, 7) + "…" : "ainda não criado"} · neste aparelho: ${d} canais concluídos, ${w} vídeos assistidos`;
+}
+
 function syncStatusText() {
   if (!config.gistToken) return "Sem token: o progresso fica só neste aparelho.";
   if (sync.state === "syncing") return "Sincronizando…";
@@ -598,9 +648,10 @@ function syncStatusText() {
 }
 
 function syncIndicator() {
-  if (!config.gistToken) return "";
-  const label = { idle: "Sincronização", syncing: "Sincronizando…", ok: "Sincronizado", error: "Erro de sincronização" }[sync.state];
-  return `<button class="sync" data-action="settings" data-state="${sync.state}" aria-label="${esc(label + (sync.msg ? ": " + sync.msg : ""))}">${sync.state === "error" ? I.alert : I.cloud}<span>${label}</span></button>`;
+  const off = !config.gistToken, state = off ? "off" : sync.state;
+  const label = { off: "Sincronização desligada", idle: "Sincronização", syncing: "Sincronizando…", ok: "Sincronizado", error: "Erro de sincronização" }[state];
+  const hint = off ? ". Toque para configurar." : sync.msg ? ": " + sync.msg : "";
+  return `<button class="sync" data-action="settings" data-state="${state}" aria-label="${esc(label + hint)}">${state === "error" ? I.alert : off ? I.cloudOff : I.cloud}<span>${label}</span></button>`;
 }
 
 // ============================================================
@@ -619,6 +670,7 @@ document.addEventListener("click", (e) => {
     case "toggle-done-cur": toggleDone(curCh()); break;
     case "toggle-video": toggleWatched(id); break;
     case "refresh": loadChannel(curCh(), true); break;
+    case "more": loadMore(curCh()); break;
     case "next-platform": nextPlatform(); break;
     case "next-course": nextCourse(); break;
     case "settings": openSettings(); break;
@@ -627,10 +679,34 @@ document.addEventListener("click", (e) => {
   }
 });
 
-document.addEventListener("submit", (e) => {
+// Valida o token antes de salvar: erro de token vira mensagem na hora, não sincronização muda.
+// Sem conexão para validar: aceita e deixa o sync mostrar o erro depois.
+async function checkToken(token) {
+  if (token.startsWith("github_pat_"))
+    return "Esse é um token “fine-grained”, que não acessa gists. Crie um token clássico (começa com ghp_) marcando só o escopo gist.";
+  try {
+    const r = await fetch(`${GH}/gists?per_page=1`, { cache: "no-cache", headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } });
+    if (r.status === 401) return "O GitHub recusou o token (inválido, expirado ou copiado incompleto).";
+    if (!r.ok) return "O GitHub recusou o acesso a gists com esse token. Use um token clássico com o escopo gist.";
+    const scopes = r.headers.get("x-oauth-scopes");
+    if (scopes !== null && !scopes.split(",").map((x) => x.trim()).includes("gist"))
+      return `O token não tem o escopo gist (escopos dele: ${scopes || "nenhum"}). Gere outro marcando gist.`;
+  } catch {}
+  return "";
+}
+
+document.addEventListener("submit", async (e) => {
   const form = e.target.closest("[data-form]");
   if (!form) return;
   e.preventDefault();
+  const token = form.querySelector("#gistToken").value.trim();
+  if (token && token !== (config.gistToken || "")) {
+    const btn = form.querySelector("[type=submit]"), err = form.querySelector(".form-error");
+    btn.disabled = true; err.hidden = true;
+    const problem = await checkToken(token);
+    btn.disabled = false;
+    if (problem) { err.textContent = problem; err.hidden = false; form.querySelector("#gistToken").focus(); return; }
+  }
   const first = !config.apiKey;
   if (!saveSettingsFields(form)) return;
   if (form.dataset.form === "settings") dlg().close();
@@ -691,6 +767,8 @@ window.addEventListener("online", syncNow);
 // ============================================================
 // INIT
 // ============================================================
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+
 S.sel = firstOpen();
 render();
 if (config.apiKey && S.tab === "videos") loadChannel(curCh());

@@ -7,7 +7,9 @@ Seus canais do YouTube e cursos online em rodízio semanal, num app que roda no 
 - **Cursos:** rodízio de plataformas, com "onde parei" editável.
 - **Sincronização:** o progresso vai para um Gist secreto do seu GitHub e aparece igual no celular e no computador.
 
-Clicar num vídeo abre o YouTube em outra aba (no iPhone, no app do YouTube). Não há player dentro do app.
+Clicar num vídeo abre o YouTube em outra aba (no iPhone, no app do YouTube). Não há player dentro do app. Cada canal mostra os 10 vídeos mais recentes; **Mostrar mais vídeos** traz mais 10 por vez e **Próximo não assistido** abre o mais novo que você ainda não marcou.
+
+O app funciona offline (abre com a última lista que você viu).
 
 ## Endereço
 
@@ -34,7 +36,7 @@ A chave fica só no aparelho (`localStorage`) e nunca é enviada para o Gist. Co
 
 ### 2. Token do Gist (opcional, para sincronizar)
 
-Sem token o app funciona normalmente, só que o progresso fica em cada aparelho separado.
+Sem token o app funciona normalmente, só que o progresso fica em cada aparelho separado. **Cole o token nos dois aparelhos** (celular e computador): a tela inicial só aparece na primeira vez, então depois vai em **Ajustes**.
 
 1. Abra este link (já vem com o escopo certo marcado): <https://github.com/settings/tokens/new?scopes=gist&description=FlowPlayer>
    Ou vá em GitHub → **Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)**.
@@ -50,6 +52,13 @@ O que acontece:
 - No primeiro aparelho, o app cria um Gist secreto chamado "FlowPlayer — progresso (não apague)", com o arquivo `flowplayer-progress.json`.
 - Nos outros aparelhos, o app procura esse arquivo na sua conta e usa o que já existe.
 - O app sincroniza ao abrir, ao voltar para ele e 2 segundos depois de cada marcação. O ícone de nuvem no topo mostra o estado.
+
+**Não sincronizou?** Abra **Ajustes** nos dois aparelhos:
+
+- A nuvem no topo aparece **riscada** quando não há token neste aparelho. Toque nela e cole o token.
+- Ao salvar, o app testa o token e diz o que está errado (fine-grained, expirado, sem o escopo `gist`).
+- Compare a linha "Gist: xxxxxxx…" dos dois aparelhos: tem que ser o mesmo código. Ela também mostra quantas marcações há em cada aparelho.
+- Em <https://gist.github.com> deve existir um gist secreto "FlowPlayer — progresso (não apague)".
 
 Para revogar: GitHub → Settings → Developer settings → Tokens (classic) → **Delete**.
 

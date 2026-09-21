@@ -15,7 +15,7 @@ echo "5) config salvo: $($A eval 'const c=JSON.parse(localStorage.getItem("fp-co
 echo "6) gist criado: $(grep -c 'POST /gists' mock_gist.log) | vídeos carregados do mock: $($A eval 'document.querySelectorAll(".video").length')"
 echo "7) só API Key (sem token) também entra:"; $A eval "localStorage.clear()" >/dev/null; $A reload >/dev/null; $A wait 400 >/dev/null; : > mock_gist.log
 $A fill '#apiKey' 'FAKEKEY123' >/dev/null; $A press Enter >/dev/null; $A wait 1500 >/dev/null
-echo "   app: $($A eval '!!document.querySelector(".app")') | chamadas gist: $(grep -c gists mock_gist.log) | indicador de sync: $($A eval '!!document.querySelector(".sync")')"
+echo "   app: $($A eval '!!document.querySelector(".app")') | chamadas gist: $(grep -c gists mock_gist.log) | indicador: $($A eval 'document.querySelector(".sync")?.dataset.state') (esperado off)"
 echo "8) ajustes mobile (bottom sheet)"; $A click '[data-action=settings]' >/dev/null; $A wait 300 >/dev/null; $A screenshot settings-390.png >/dev/null
 echo "   token mascarado: $($A eval 'document.querySelector("dialog #gistToken").type')"
 echo "erros de página: $($A errors | head -3)"
