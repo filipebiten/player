@@ -19,9 +19,10 @@
   // Qual das 4 partes está na vez nesta semana real. Rotação contínua: nunca reseta por mês.
   const weekIndexForDate = (d) => ((weeksSinceEpoch(d) % 4) + 4) % 4;
 
-  // Chave do "canal concluído": ano-mês-semana(1..4). Muda sozinha no mês seguinte.
-  const doneKey = (d, weekIndex) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${weekIndex + 1}`;
+  // Chave do "canal concluído": uma por semana real (segunda a domingo). Muda sozinha
+  // toda semana, então quando a parte volta a aparecer (~4 semanas depois) o progresso já
+  // está zerado — não precisa de lógica de reset separada.
+  const doneKey = (d) => `w${weeksSinceEpoch(d)}`;
 
   // Identidade estável do canal (não depende da posição na lista).
   const channelKey = (ch) => ch.channelId || ch.handle || ch.query;
@@ -73,9 +74,10 @@
     const watched = {};
     for (const [k, e] of Object.entries(p.watched)) if (now - e.t <= WATCHED_TTL) watched[k] = e;
     const done = {};
+    const curWeek = weeksSinceEpoch(new Date(now));
     for (const [k, v] of Object.entries(p.done)) {
-      const [y, m] = k.split("-").map(Number);
-      if (now - new Date(y, m - 1, 1).getTime() <= 400 * DAY) done[k] = v;
+      const n = Number(k.slice(1)); // "w2926" -> 2926
+      if (Number.isFinite(n) && curWeek - n <= 57) done[k] = v; // ~400 dias / 7
     }
     return { ...p, watched, done };
   }

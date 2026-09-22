@@ -50,9 +50,32 @@ t("semana seguinte deve ser weeksSinceEpoch + 1", () => {
     1);
 });
 
-t("chave ano-mês-semana zera no mês seguinte", () => {
-  assert.equal(FP.doneKey(d(2026, 9, 21), 2), "2026-09-3");
-  assert.notEqual(FP.doneKey(d(2026, 9, 21), 2), FP.doneKey(d(2026, 10, 21), 2));
+// doneKey: um inteiro por semana real, sem precisar do índice da parte (a parte já está
+// implícita na lista de canais que está sendo mostrada, não precisa duplicar na chave).
+t("doneKey deve ser igual pra qualquer dia da mesma semana real", () => {
+  assert.equal(FP.doneKey(new Date(2026, 8, 21)), FP.doneKey(new Date(2026, 8, 23)));
+});
+
+t("doneKey deve mudar na semana seguinte (reset automático)", () => {
+  assert.notEqual(FP.doneKey(new Date(2026, 8, 28)), FP.doneKey(new Date(2026, 8, 21)));
+});
+
+t("doneKey deve ter o formato w<inteiro>", () => {
+  assert.match(FP.doneKey(new Date(2026, 8, 21)), /^w-?\d+$/);
+});
+
+// pruneProgress: done com chave "w<N>" de mais de 400 dias (57 semanas) é descartado;
+// mais novo que isso sobrevive.
+t("prune remove semanas muito antigas mas mantém recentes", () => {
+  const now = new Date(2026, 8, 21).getTime();
+  const oldWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)) - 60; // ~420 dias atrás
+  const recentWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)) - 2; // 2 semanas atrás
+  const p = FP.emptyProgress();
+  p.done[`w${oldWeek}`] = { canalX: { t: now, on: true } };
+  p.done[`w${recentWeek}`] = { canalX: { t: now, on: true } };
+  const pruned = FP.pruneProgress(p, now);
+  assert(!(`w${oldWeek}` in pruned.done), "semana de 420 dias atrás devia ter sido podada");
+  assert(`w${recentWeek}` in pruned.done, "semana de 2 atrás não devia ser podada");
 });
 
 t("channelKey usa channelId > handle > query", () => {
@@ -102,16 +125,19 @@ t("merge tolera dado remoto vazio ou malformado", () => {
     assert.equal(FP.isOn(FP.mergeProgress(a, bad).watched.v1), true);
 });
 
-t("prune remove watched antigo e meses muito antigos", () => {
-  const now = Date.UTC(2026, 8, 21), day = 86400000;
+t("prune remove watched antigo e semanas muito antigas", () => {
+  const now = new Date(2026, 8, 21).getTime();
+  const day = 86400000;
   const p = FP.emptyProgress();
   FP.setEntry(p.watched, "velho", true, now - 200 * day);
   FP.setEntry(p.watched, "novo", true, now - 10 * day);
-  p.done["2024-01-1"] = { x: { t: 1, on: true } };
-  p.done["2026-09-3"] = { y: { t: now, on: true } };
+  const oldWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)) - 60; // ~420 dias
+  const recentWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)); // hoje
+  p.done[`w${oldWeek}`] = { x: { t: 1, on: true } };
+  p.done[`w${recentWeek}`] = { y: { t: now, on: true } };
   const r = FP.pruneProgress(p, now);
   assert.deepEqual(Object.keys(r.watched), ["novo"]);
-  assert.deepEqual(Object.keys(r.done), ["2026-09-3"]);
+  assert.deepEqual(Object.keys(r.done), [`w${recentWeek}`]);
 });
 
 t("relDate em pt-BR", () => {
