@@ -46,7 +46,7 @@ let todayWeek = S.week;
 const narrow = () => !matchMedia("(min-width: 900px)").matches;
 const week = () => WEEKS[S.week];
 const curCh = () => week().channels[S.sel];
-const doneKey = () => FP.doneKey(new Date(), S.week);
+const doneKey = () => FP.doneKey(new Date());
 const isDone = (ch) => FP.isOn(progress.done[doneKey()]?.[FP.channelKey(ch)]);
 const isWatched = (id) => FP.isOn(progress.watched[id]);
 const firstOpen = () => { const i = week().channels.findIndex((c) => !isDone(c)); return i < 0 ? 0 : i; };
@@ -381,22 +381,24 @@ const doneButton = (extra = "") => {
 function renderVideosTab() {
   const w = week(), total = w.channels.length, done = w.channels.filter(isDone).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
+  const isCurrent = S.week === todayWeek;
   return `
     <div class="split">
-      <section class="pane-list" aria-label="Canais da ${esc(w.label)}">
+      <section class="pane-list" aria-label="Canais desta semana" data-group="${S.week}">
         <div class="weekbar">
           <div class="weekbar__head">
-            <h2 class="weekbar__title">${esc(w.label)}</h2>
-            ${S.week === todayWeek ? '<span class="pill">Atual</span>' : ""}
+            <div class="weeknav">
+              <button class="icon-btn" data-action="week-prev" aria-label="Grupo anterior" ${S.week === 0 ? "disabled" : ""}>${I.back}</button>
+              <h2 class="weekbar__title">${isCurrent ? "Canais desta semana" : "Outro grupo de canais"}</h2>
+              <button class="icon-btn" data-action="week-next" aria-label="Próximo grupo" ${S.week === 3 ? "disabled" : ""}>${I.go}</button>
+            </div>
+            ${isCurrent ? '<span class="pill">Atual</span>' : ""}
             <span class="weekbar__count">${done} de ${total} concluídos</span>
-          </div>
-          <div class="seg" role="group" aria-label="Escolher semana">
-            ${WEEKS.map((_, i) => `<button class="seg__btn ${i === todayWeek ? "is-today" : ""}" data-action="week" data-i="${i}" aria-pressed="${i === S.week}" aria-label="Semana ${i + 1}${i === todayWeek ? " (atual)" : ""}">${i + 1}</button>`).join("")}
           </div>
           <div class="bar" role="progressbar" aria-label="Canais concluídos nesta semana" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${pct}%"></span></div>
         </div>
         <ul class="chlist">${w.channels.map(renderChannelRow).join("")}</ul>
-        <p class="legend"><kbd>J</kbd> <kbd>K</kbd> canal · <kbd>Espaço</kbd> marcar canal concluído · <kbd>[</kbd> <kbd>]</kbd> semana · <kbd>R</kbd> recarregar · <kbd>1</kbd> <kbd>2</kbd> abas</p>
+        <p class="legend"><kbd>J</kbd> <kbd>K</kbd> canal · <kbd>Espaço</kbd> marcar canal concluído · <kbd>[</kbd> <kbd>]</kbd> grupo · <kbd>R</kbd> recarregar · <kbd>1</kbd> <kbd>2</kbd> abas</p>
       </section>
       <section class="pane-detail" aria-label="Vídeos do canal">${renderDetail()}</section>
     </div>`;
@@ -665,7 +667,8 @@ document.addEventListener("click", (e) => {
   const { action, i, id, tab } = el.dataset;
   switch (action) {
     case "tab": setTab(tab); break;
-    case "week": setWeek(+i); break;
+    case "week-prev": setWeek(Math.max(0, S.week - 1)); break;
+    case "week-next": setWeek(Math.min(3, S.week + 1)); break;
     case "select": selectChannel(+i); break;
     case "back": backToList(); break;
     case "toggle-done": toggleDone(week().channels[+i]); break;
