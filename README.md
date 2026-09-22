@@ -2,8 +2,8 @@
 
 Seus canais do YouTube e cursos online em rodízio semanal, num app que roda no celular (PWA no iPhone) e no computador.
 
-- **Vídeos:** os 4 grupos de canais rodam pela semana do mês (dia 1–7 = Semana 1, 8–14 = Semana 2, 15–21 = Semana 3, 22 em diante = Semana 4). O app abre sempre na semana de hoje.
-- **Progresso:** marque cada vídeo como "assistido" e cada canal como "concluído nesta semana". O progresso zera sozinho no mês seguinte.
+- **Vídeos:** os 4 grupos de canais rodam por semana real (segunda a domingo), em rotação contínua — nunca reseta por mês, um mês com 5 semanas só continua o ciclo. O app abre sempre no grupo de hoje.
+- **Progresso:** marque cada vídeo como "assistido" e cada canal como "concluído nesta semana". O progresso zera sozinho quando o grupo volta a aparecer (~4 semanas depois).
 - **Cursos:** rodízio de plataformas, com "onde parei" editável.
 - **Sincronização:** o progresso vai para um Gist secreto do seu GitHub e aparece igual no celular e no computador.
 
@@ -73,7 +73,7 @@ Para revogar: GitHub → Settings → Developer settings → Tokens (classic) �
 |---|---|
 | `J` / `K` | canal seguinte / anterior |
 | `Espaço` | marcar ou desmarcar o canal como concluído |
-| `[` / `]` | semana anterior / próxima |
+| `[` / `]` | grupo anterior / próximo |
 | `R` | recarregar os vídeos do canal |
 | `1` / `2` | aba Vídeos / Cursos |
 

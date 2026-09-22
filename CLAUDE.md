@@ -36,7 +36,7 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 ## Regras fechadas
 
 ### Semana automática
-`FP.weekIndexForDate(date)` = `min(3, floor((diaDoMês - 1) / 7))`. Dia 1–7 → Semana 1 (índice 0), 8–14 → 2, 15–21 → 3, **22 em diante → 4** (inclui 29–31). O app **sempre abre na semana de hoje**; a semana escolhida manualmente não é salva. Navegação entre semanas: seletor 1–4 na lista de canais e teclas `[` `]`. Se o app voltar ao primeiro plano em outro dia que mude a semana, ele reposiciona (`visibilitychange`). O `getWeekIndex` antigo (semana do ano módulo 4) foi removido: não volte a ele.
+`FP.weekIndexForDate(date)` = `((FP.weeksSinceEpoch(date) % 4) + 4) % 4`. `weeksSinceEpoch` conta semanas-calendário inteiras (segunda a domingo) desde uma âncora fixa (segunda-feira 1970-01-05) — cresce 1 por semana real, para sempre, sem reset por mês nem descontinuidade em virada de ano (mesmo em anos com 53 semanas ISO). O app **sempre abre no grupo da semana de hoje**; navegar manualmente não é salvo. Navegação entre grupos: setas `.weeknav` na lista de canais e teclas `[` `]` (clamped em 0-3, não dá volta). Se o app voltar ao primeiro plano numa semana diferente, reposiciona (`visibilitychange`). Não há mais rótulo "Semana N" na tela principal — o texto é "Canais desta semana" (grupo de hoje) ou "Outro grupo de canais" (navegou manualmente). A fórmula antiga por bloco de dia-do-mês (`min(3, floor((diaDoMês-1)/7))`, v2.0-2.1) foi removida: não coincidia com semanas-calendário reais quando o mês não começava numa segunda. Não volte a ela.
 
 ### Modelo de dados do progresso
 
@@ -64,7 +64,7 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 ```
 
 - `watched`: check por vídeo, indexado por `videoId`.
-- `done`: chave `ANO-MÊS-SEMANA` (`FP.doneKey`, semana de 1 a 4, mês com 2 dígitos). O **mês vem da data de hoje**, então zera sozinho no mês seguinte, e consultar outra semana mostra o progresso dessa semana no mês atual. A chave interna é o `channelKey`.
+- `done`: chave `w<N>` (`FP.doneKey`), onde `N` é `weeksSinceEpoch` — uma chave por semana-calendário real. Muda sozinha toda semana, então quando um grupo volta a aparecer (~4 semanas depois) o progresso já nasce zerado. A chave interna é o `channelKey`.
 - **`channelKey`** = `channelId` ‖ `handle` ‖ `query` (`FP.channelKey`). **Nunca o índice** na lista. Por isso reordenar `WEEKS` não quebra o progresso, mas **renomear handle/channelId/query zera o progresso daquele canal**.
 - `courses`: chave `"<nome da plataforma>|<nome do curso>"`. `lastLesson` no `PLATFORMS` é só o **valor inicial**; depois de editado no app vale o salvo.
 - `rot`: rodízio dos cursos (`p` = índice da plataforma da vez, `c` = índice do curso).
