@@ -5,9 +5,49 @@ import FP from "../lib.js";
 const t = (name, fn) => { fn(); console.log("ok  " + name); };
 const d = (y, m, day) => new Date(y, m - 1, day, 12);
 
-t("semana pelo dia do mês", () => {
-  const exp = { 1: 0, 7: 0, 8: 1, 14: 1, 15: 2, 21: 2, 22: 3, 28: 3, 29: 3, 31: 3 };
-  for (const [day, w] of Object.entries(exp)) assert.equal(FP.weekIndexForDate(d(2026, 8, +day)), w, `dia ${day}`);
+// weekIndexForDate: semana real (segunda a domingo), rotação contínua sem reset por mês.
+
+// Segunda 2026-09-21 e domingo 2026-09-27 são a MESMA semana-calendário -> mesmo índice.
+t("segunda e domingo da mesma semana devem cair no mesmo índice", () => {
+  assert.equal(FP.weekIndexForDate(new Date(2026, 8, 21)) === FP.weekIndexForDate(new Date(2026, 8, 27)),
+    true);
+});
+
+// A semana seguinte (segunda 2026-09-28) tem que ser o índice seguinte (mod 4), nunca repetir.
+t("semana seguinte devia ser incremento mod 4", () => {
+  const a = FP.weekIndexForDate(new Date(2026, 8, 21));
+  const b = FP.weekIndexForDate(new Date(2026, 8, 28));
+  assert.equal(b === (a + 1) % 4, true, `semana seguinte devia ser ${(a + 1) % 4}, veio ${b}`);
+});
+
+// Mês de 5 semanas-calendário (setembro/2026 tem segundas em 7,14,21,28 -> só 4;
+// use um mês real com 5 segundas: outubro/2026 tem segundas em 5,12,19,26 -> 4 também.
+// Testa 5 segundas consecutivas quaisquer: os índices têm que ser 0,1,2,3,0 (nunca travar em 3).
+t("5 segundas seguidas devem rodar 0..3 e voltar ao início", () => {
+  const mondays = [new Date(2026, 8, 7), new Date(2026, 8, 14), new Date(2026, 8, 21),
+    new Date(2026, 8, 28), new Date(2026, 9, 5)];
+  const idx = mondays.map(FP.weekIndexForDate);
+  assert.equal(JSON.stringify(idx) === JSON.stringify([idx[0], (idx[0]+1)%4, (idx[0]+2)%4, (idx[0]+3)%4, idx[0]]),
+    true, `5 segundas seguidas devem rodar 0..3 e voltar ao início, veio ${idx}`);
+});
+
+// Virada de ano com semana ISO 53 (2026 tem 53 semanas ISO: segunda 2026-12-28 é a última
+// semana de 2026, segunda 2027-01-04 é a primeira de 2027). Não pode repetir índice nem pular 2.
+t("virada de ano (semana 53) devia dar incremento mod 4", () => {
+  const a = FP.weekIndexForDate(new Date(2026, 11, 28));
+  const b = FP.weekIndexForDate(new Date(2027, 0, 4));
+  assert.equal(b === (a + 1) % 4, true, `virada de ano (semana 53) devia dar ${(a + 1) % 4}, veio ${b}`);
+});
+
+// weeksSinceEpoch: mesma semana (qualquer dia dela) dá o mesmo número; semana seguinte é +1 exato.
+t("mesma semana-calendário deve dar o mesmo weeksSinceEpoch", () => {
+  assert.equal(FP.weeksSinceEpoch(new Date(2026, 8, 21)) === FP.weeksSinceEpoch(new Date(2026, 8, 23)),
+    true);
+});
+
+t("semana seguinte deve ser weeksSinceEpoch + 1", () => {
+  assert.equal(FP.weeksSinceEpoch(new Date(2026, 8, 28)) - FP.weeksSinceEpoch(new Date(2026, 8, 21)),
+    1);
 });
 
 t("chave ano-mês-semana zera no mês seguinte", () => {

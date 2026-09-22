@@ -5,8 +5,19 @@
   const CACHE_TTL = 6 * 3600000; // lista de vídeos por canal
   const WATCHED_TTL = 180 * DAY; // "assistido" mais velho que isso é descartado
 
-  // Dia 1–7 = semana 0, 8–14 = 1, 15–21 = 2, 22+ = 3.
-  const weekIndexForDate = (d) => Math.min(3, Math.floor((d.getDate() - 1) / 7));
+  // Segunda-feira 1970-01-05 como âncora (não importa qual segunda, só precisa ser fixa).
+  // Usar componentes de data LOCAL (getFullYear/Month/Date) mas aritmética em UTC-ms evita
+  // bug de horário de verão contando "dias" com Date.UTC puro.
+  const ISO_MONDAY_EPOCH = Date.UTC(1970, 0, 5);
+  const mondayUTC = (d) => {
+    const dow = (d.getDay() + 6) % 7; // 0=segunda … 6=domingo
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate() - dow);
+  };
+  // Semanas inteiras (segunda a segunda) desde a âncora. Cresce 1 por semana real, para sempre.
+  const weeksSinceEpoch = (d) => Math.floor((mondayUTC(d) - ISO_MONDAY_EPOCH) / (7 * DAY));
+
+  // Qual das 4 partes está na vez nesta semana real. Rotação contínua: nunca reseta por mês.
+  const weekIndexForDate = (d) => ((weeksSinceEpoch(d) % 4) + 4) % 4;
 
   // Chave do "canal concluído": ano-mês-semana(1..4). Muda sozinha no mês seguinte.
   const doneKey = (d, weekIndex) =>
@@ -83,7 +94,7 @@
   const isFresh = (entry, now = Date.now(), ttl = CACHE_TTL) => !!entry && now - entry.t < ttl;
 
   const api = {
-    CACHE_TTL, weekIndexForDate, doneKey, channelKey, escapeHtml,
+    CACHE_TTL, weeksSinceEpoch, weekIndexForDate, doneKey, channelKey, escapeHtml,
     emptyProgress, setEntry, isOn, mergeProgress, pruneProgress, relDate, isFresh,
   };
   root.FP = api;
