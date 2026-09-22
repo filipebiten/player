@@ -31,7 +31,7 @@
     String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ---- Progresso (é o que sincroniza no Gist) ----
-  // watched[videoId] = {t, on}; done["2026-09-3"][channelKey] = {t, on};
+  // watched[videoId] = {t, on}; done["w2926"][channelKey] = {t, on};
   // courses["Plataforma|Curso"] = {t, lastLesson}; rot = {t, p, c}
   // Desmarcar grava {on:false} (túmulo) para o merge entre aparelhos não ressuscitar a marca.
   const emptyProgress = () => ({ v: 1, watched: {}, done: {}, courses: {}, rot: null });

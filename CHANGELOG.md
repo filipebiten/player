@@ -5,7 +5,7 @@ Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 ## 2.2.0 — 2026-09-22
 
 ### Alterado
-- **Semana real em vez de bloco de dia-do-mês:** a parte da vez agora é calculada por semana-calendário real (segunda a domingo), em rotação contínua entre as 4 partes — nunca reseta por mês, e um mês com 5 semanas-calendário só continua o ciclo em vez de empurrar dias extras pra última parte. `done` (canal concluído) passa a resetar por semana real em vez de mês.
+- **Semana real em vez de bloco de dia-do-mês:** a parte da vez agora é calculada por semana-calendário real (segunda a domingo), em rotação contínua entre as 4 partes — nunca reseta por mês, e um mês com 5 semanas-calendário só continua o ciclo em vez de empurrar dias extras pra última parte. `done` (canal concluído) passa a resetar por semana real em vez de mês. Efeito colateral esperado: na primeira sincronização de cada aparelho depois desse update, `pruneProgress` descarta as marcas de "canal concluído" antigas (formato `"AAAA-MM-N"`, que não bate mais com o novo formato `"w<N>"`) — autolimpeza normal, já que "concluído" mesmo no sistema antigo resetava a cada poucas semanas.
 - **Sem "Semana N" na tela principal:** o cabeçalho mostra "Canais desta semana" (grupo de hoje) ou "Outro grupo de canais" (ao navegar manualmente). O seletor 1-4 virou duas setas. Teclas `[` `]` continuam navegando entre os 4 grupos.
 
 ## 2.1.2 — 2026-09-21

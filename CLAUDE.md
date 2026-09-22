@@ -6,7 +6,7 @@ Leia este arquivo inteiro antes de mexer em qualquer coisa. Ele foi escrito para
 
 App web pessoal do Filipe para acompanhar **canais do YouTube** e **cursos online** em **rodízio semanal**. Ele usa no iPhone (instalado como PWA) e no computador. Repo público: `github.com/filipebiten/player`, publicado no GitHub Pages em `https://filipebiten.github.io/player/`.
 
-Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe um vídeo, assiste no YouTube e marca. Quando termina o canal, marca "concluído nesta semana". Nos cursos, anota "onde parei" e passa a vez para a próxima plataforma.
+Uso: a cada semana real há um grupo de canais. Filipe abre o canal, escolhe um vídeo, assiste no YouTube e marca. Quando termina o canal, marca "concluído nesta semana". Nos cursos, anota "onde parei" e passa a vez para a próxima plataforma.
 
 ## Restrições que não mudam
 
@@ -21,7 +21,7 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 |---|---|
 | `index.html` | Casca: meta tags do PWA, **CSP**, `<div id="app">`, `<dialog id="settings">`, carrega os 3 scripts nesta ordem: `data.js` → `lib.js` → `app.js`. |
 | `data.js` | **Listas `WEEKS` (canais) e `PLATFORMS` (cursos).** É onde se edita conteúdo. |
-| `lib.js` | Lógica **pura** (sem DOM nem rede): semana pelo dia, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
+| `lib.js` | Lógica **pura** (sem DOM nem rede): semana pela data real, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
 | `app.js` | Estado, chamadas à API do YouTube, cache, progresso, sync do Gist, render (`innerHTML` + delegação de eventos por `data-action`), atalhos. |
 | `styles.css` | Tokens, componentes e layout. Mobile primeiro; duas colunas a partir de `min-width: 900px`. |
 | `sw.js` | Service worker: o app abre offline. Network-first (ver "Service worker"). |
@@ -147,7 +147,7 @@ bash setup-flow.sh            # primeira execução: tela inicial com/sem token
 ```
 
 - `seed.js` injeta `fp-config` e um `fp-vidcache` fictício (27 canais × 6 vídeos) via `agent-browser eval`, para testar a interface sem rede.
-- `redirect.js` (`--init-script`) redireciona `api.github.com` e `googleapis.com` para o mock local; `fakedate.js` simula o dia do mês.
+- `redirect.js` (`--init-script`) redireciona `api.github.com` e `googleapis.com` para o mock local; `fakedate.js` simula uma data completa (`__fakeDate`, `"YYYY-MM-DD"`) — `__fakeDay` (dia do mês, set/2026 fixo) é mantido só por compatibilidade.
 - Os scripts são **bash** (em zsh, `$A` com espaços não separa em palavras: rode com `bash arquivo.sh`).
 - Para falar com o mock a partir do shell, use Python `urllib` (o `curl` pode ser bloqueado por hooks do Claude Code).
 - Depois de mudar `app.js`, `styles.css` ou `index.html`, rode `setup.sh` de novo (ele recopia a cópia de teste).

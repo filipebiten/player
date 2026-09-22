@@ -384,7 +384,7 @@ function renderVideosTab() {
   const isCurrent = S.week === todayWeek;
   return `
     <div class="split">
-      <section class="pane-list" aria-label="Canais desta semana" data-group="${S.week}">
+      <section class="pane-list" aria-label="${isCurrent ? "Canais desta semana" : "Outro grupo de canais"}" data-group="${S.week}">
         <div class="weekbar">
           <div class="weekbar__head">
             <div class="weeknav">
