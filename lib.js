@@ -34,7 +34,7 @@
   // watched[videoId] = {t, on}; done["w2926"][channelKey] = {t, on};
   // courses["Plataforma|Curso"] = {t, lastLesson}; rot = {t, p, c}
   // Desmarcar grava {on:false} (túmulo) para o merge entre aparelhos não ressuscitar a marca.
-  const emptyProgress = () => ({ v: 1, watched: {}, done: {}, courses: {}, rot: null });
+  const emptyProgress = () => ({ v: 1, watched: {}, done: {}, courses: {}, rot: null, channels: {} });
 
   const setEntry = (map, key, on, t) => { map[key] = { t, on }; };
   const isOn = (e) => !!(e && e.on);
@@ -46,6 +46,7 @@
     done: isObj(p?.done) ? p.done : {},
     courses: isObj(p?.courses) ? p.courses : {},
     rot: isObj(p?.rot) ? p.rot : null,
+    channels: isObj(p?.channels) ? p.channels : {},
   });
 
   const newer = (a, b) => (!a ? b : !b ? a : b.t > a.t ? b : a);
@@ -66,7 +67,35 @@
       done,
       courses: mergeMaps(a.courses, b.courses),
       rot: newer(a.rot, b.rot) || null,
+      channels: mergeMaps(a.channels, b.channels),
     };
+  }
+
+  // Grupo com menos canais "on" no momento — empate vai pro de menor índice. Mapa vazio -> 0.
+  function assignGroup(channelsMap) {
+    const counts = [0, 0, 0, 0];
+    for (const c of Object.values(channelsMap)) if (isOn(c)) counts[c.group] = (counts[c.group] || 0) + 1;
+    let best = 0;
+    for (let g = 1; g < 4; g++) if (counts[g] < counts[best]) best = g;
+    return best;
+  }
+
+  // Semente única: os canais hoje fixos em WEEKS (data.js) viram entradas de progress.channels,
+  // mesma channelKey de sempre (channelId‖handle‖query) — não quebra watched/done existentes.
+  // `t` deve ser propositalmente antigo (não Date.now()): assim, se outro aparelho já tiver
+  // um progress.channels real vindo do Gist, o merge por timestamp deixa o dado real vencer
+  // em vez da semente recém-criada neste aparelho.
+  function migrateWeeksChannels(WEEKS, t) {
+    const channels = {};
+    WEEKS.forEach((w, group) => {
+      w.channels.forEach((c) => {
+        channels[channelKey(c)] = {
+          t, on: true, group, name: c.name, type: c.type,
+          channelId: c.channelId, handle: c.handle, query: c.query,
+        };
+      });
+    });
+    return channels;
   }
 
   function pruneProgress(p, now = Date.now()) {
@@ -98,6 +127,7 @@
   const api = {
     CACHE_TTL, weeksSinceEpoch, weekIndexForDate, doneKey, channelKey, escapeHtml,
     emptyProgress, setEntry, isOn, mergeProgress, pruneProgress, relDate, isFresh,
+    assignGroup, migrateWeeksChannels,
   };
   root.FP = api;
   if (typeof module !== "undefined") module.exports = api;

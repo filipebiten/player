@@ -159,3 +159,43 @@ t("cache de 6h", () => {
   assert.equal(FP.isFresh({ t: now - 7 * h }, now), false);
   assert.equal(FP.isFresh(undefined, now), false);
 });
+
+// progress.channels: mapa igual a watched/courses, sobrevive a mergeProgress/pruneProgress.
+t("emptyProgress deve ter channels: {}", () => {
+  const empty = FP.emptyProgress();
+  assert("channels" in empty && Object.keys(empty.channels).length === 0);
+});
+
+// assignGroup: grupo com menos canais "on" ganha; empate vai pro menor índice.
+t("assignGroup deve retornar grupo com menos canais on", () => {
+  const chs = {
+    a: { t: 1, on: true, group: 0 },
+    b: { t: 1, on: true, group: 0 },
+    c: { t: 1, on: true, group: 1 },
+    d: { t: 1, on: false, group: 2 }, // desmarcado não conta
+  };
+  assert.equal(FP.assignGroup(chs), 2, `grupo 2 tem 0 canais on, devia ganhar, veio ${FP.assignGroup(chs)}`);
+  assert.equal(FP.assignGroup({}), 0, "mapa vazio deve cair no grupo 0");
+});
+
+// migrateWeeksChannels: cada canal de WEEKS[i] vira uma entrada no grupo i, "on", com a
+// mesma channelKey de FP.channelKey (pra não quebrar watched/done já salvos).
+t("migrateWeeksChannels deve converter WEEKS para channels map", () => {
+  const WEEKS = [
+    { label: "Semana 1", channels: [{ name: "A", handle: "aa", type: "channel" }] },
+    { label: "Semana 2", channels: [{ name: "B", channelId: "UCxxx", type: "channel" }] },
+  ];
+  const out = FP.migrateWeeksChannels(WEEKS, 42);
+  assert(out.aa && out.aa.group === 0 && out.aa.on === true && out.aa.name === "A" && out.aa.t === 42,
+    `esperava entrada "aa" no grupo 0, veio ${JSON.stringify(out.aa)}`);
+  assert(out.UCxxx && out.UCxxx.group === 1 && out.UCxxx.channelId === "UCxxx",
+    `esperava entrada "UCxxx" no grupo 1, veio ${JSON.stringify(out.UCxxx)}`);
+});
+
+// mergeProgress: channels merge por timestamp igual watched (o mais novo vence).
+t("mergeProgress deve fazer merge de channels por timestamp", () => {
+  const a = FP.emptyProgress(); a.channels.x = { t: 1, on: true, group: 0, name: "X" };
+  const b = FP.emptyProgress(); b.channels.x = { t: 2, on: false, group: 0, name: "X" };
+  const merged = FP.mergeProgress(a, b);
+  assert.equal(merged.channels.x.on, false, "merge de channels deve preferir o timestamp maior (t:2, on:false)");
+});
