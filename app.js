@@ -24,6 +24,13 @@ if (!config) {
   try { localStorage.removeItem("fp-state"); } catch {}
 }
 let progress = FP.mergeProgress(FP.emptyProgress(), store.get("fp-progress", null)); // sincroniza
+// Semente única: se este aparelho nunca teve progress.channels (nem local nem vindo do
+// Gist), migra os 27 canais fixos de data.js pro formato novo. t=1 (bem antigo) garante que
+// se OUTRO aparelho já tiver dado real no Gist, o merge deixa o dado real vencer.
+if (!Object.keys(progress.channels).length) {
+  progress.channels = FP.migrateWeeksChannels(WEEKS, 1);
+  store.set("fp-progress", progress);
+}
 // {channelKey: {t, vids, next, uploads}} — 6h; entradas da v2.0 (sem "next") são descartadas
 let vidCache = Object.fromEntries(Object.entries(store.get("fp-vidcache", {})).filter(([, c]) => "next" in c));
 let chIds = store.get("fp-chid", {});        // handle → channelId (não expira)
@@ -44,8 +51,11 @@ const S = {
 let todayWeek = S.week;
 
 const narrow = () => !matchMedia("(min-width: 900px)").matches;
-const week = () => WEEKS[S.week];
-const curCh = () => week().channels[S.sel];
+const channelsInGroup = (g) => Object.values(progress.channels)
+  .filter((c) => FP.isOn(c) && c.group === g)
+  .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+const week = () => ({ channels: channelsInGroup(S.week) });
+const curCh = () => week().channels[S.sel] || null;
 const doneKey = () => FP.doneKey(new Date());
 const isDone = (ch) => FP.isOn(progress.done[doneKey()]?.[FP.channelKey(ch)]);
 const isWatched = (id) => FP.isOn(progress.watched[id]);
@@ -144,6 +154,7 @@ function errMsg(e) {
 
 // Lista por canal em cache por 6h (FP.CACHE_TTL). force=true ignora o cache (botão recarregar).
 async function loadChannel(ch, force = false) {
+  if (!ch) return;
   const k = FP.channelKey(ch), cached = vidCache[k];
   if (!force && FP.isFresh(cached)) return;
   if (S.loadingKey === k) return;
@@ -194,6 +205,7 @@ function commit(rerender = true) {
 }
 
 function toggleDone(ch) {
+  if (!ch) return;
   const k = doneKey();
   const m = (progress.done[k] ||= {});
   FP.setEntry(m, FP.channelKey(ch), !isDone(ch), now());
@@ -249,7 +261,9 @@ window.addEventListener("popstate", () => { S.view = "list"; render(); window.sc
 
 // J/K: muda o canal selecionado sem trocar de tela
 function moveSel(delta) {
-  const n = week().channels.length, i = Math.max(0, Math.min(n - 1, S.sel + delta));
+  const n = week().channels.length;
+  if (!n) return;
+  const i = Math.max(0, Math.min(n - 1, S.sel + delta));
   if (i === S.sel) return;
   S.sel = i; S.error = "";
   render();
@@ -374,7 +388,9 @@ function renderApp() {
 }
 
 const doneButton = (extra = "") => {
-  const done = isDone(curCh());
+  const ch = curCh();
+  if (!ch) return "";
+  const done = isDone(ch);
   return `<button class="btn btn--primary ${extra}" data-action="toggle-done-cur" aria-pressed="${done}">${I.check}${done ? "Canal concluído" : "Marcar canal concluído"}</button>`;
 };
 
@@ -436,7 +452,9 @@ function ago(t) {
 }
 
 function renderDetail() {
-  const ch = curCh(), k = FP.channelKey(ch), cached = vidCache[k], vids = cached?.vids || [];
+  const ch = curCh();
+  if (!ch) return `<p class="empty empty--lg">Nenhum canal marcado neste grupo ainda. Abra Ajustes → Canais pra marcar alguns.</p>`;
+  const k = FP.channelKey(ch), cached = vidCache[k], vids = cached?.vids || [];
   const loading = S.loadingKey === k;
   let body;
   if (loading && !cached) body = `<p class="empty" role="status">Buscando vídeos de ${esc(ch.name)}…</p>`;
