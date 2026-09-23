@@ -34,7 +34,7 @@ function ensureClient() {
 // normal em cada carregamento do app. silent=false (só no clique de "Conectar com Google")
 // pode abrir popup de conta/consentimento.
 function requestToken(silent) {
-  return new Promise((resolve, reject) => {
+  const p = new Promise((resolve, reject) => {
     const client = ensureClient();
     client.callback = (resp) => {
       if (!resp || resp.error) { reject(new Error((resp && resp.error) || "Login com Google cancelado ou recusado.")); return; }
@@ -44,6 +44,13 @@ function requestToken(silent) {
     };
     client.requestAccessToken(silent ? { prompt: "" } : {});
   });
+  // client.callback é o único jeito de resolver/rejeitar; se o Google nunca chamar
+  // (ex.: client_id inválido, falha silenciosa), a promise ficaria pendurada pra sempre.
+  const timeout = new Promise((_, reject) => {
+    const id = setTimeout(() => reject(new Error("Conexão com o Google demorou demais. Tente de novo.")), 20000);
+    p.finally(() => clearTimeout(id));
+  });
+  return Promise.race([p, timeout]);
 }
 
 async function getToken() {
