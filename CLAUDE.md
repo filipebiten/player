@@ -175,33 +175,39 @@ Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
 
 ## Roadmap e estado atual (retomar daqui)
 
-Atualizado em 2026-09-21, logo depois de publicar a **v2.1.0** (`d22e933` em `main`, no ar no GitHub Pages).
+Atualizado em 2026-09-22, no fim do plano **canais-oauth**, branch `worktree-semana-real-e-canais` (worktree em `.claude/worktrees/semana-real-e-canais`), HEAD `0576626`. **Ainda não mergeado em `main`, ainda não publicado.**
 
 ### Já feito
-- **v2.0.0:** reformulação completa (semana automática, sem player, cache 6 h, progresso por vídeo/canal, cursos, layout mobile/desktop, atalhos, sync via Gist, CSP, acessibilidade).
-- **v2.1.0:** "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação do token ao salvar, indicador de sync sempre visível, diagnóstico no Ajustes.
-- **Testado no iPhone pelo Filipe (v2.0):** vídeo abre no app do YouTube, canal abre certo, layout "muito bom". **A v2.1 ainda não foi testada em aparelho.**
-- Testado só com mocks (sem chave/token reais): sync, API do YouTube, offline, semana por dia do mês, axe (0 violações), alvos de toque.
+- **v2.0.0 / v2.1.x (21/09):** reformulação completa + "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação de token, diagnóstico nos Ajustes. Publicado em `main`, no ar.
+- **`ux-audit` e `pwa-development` no FlowPlayer publicado (21/09):** Conditional Pass, corrigido em v2.1.1/v2.1.2 (favicon, botão de erro de API Key, manifest com id/scope/lang/maskable).
+- **App treino (treino-hibrido) e app financeiro (Bolso · Bittencourt) (21/09, noite):** `ux-audit` + `mobile-app-ui-design` + `pwa-development` + `harmonize` + `comprehensive-test` + `verify` já rodados nos dois. Treino: `c6a9dd4`. Bolso: `4b47e89` (achou bug real de Histórico negativo). Pendências próprias de cada um, não deste roadmap.
+- **Semana real (22/09, mergeado nesta branch em `f673568`):** `FP.weekIndexForDate` passa a usar semana-calendário real (segunda-domingo) em vez de bloco de dia do mês; navegação vira setas sem número "Semana N" na tela principal.
+- **Canais via OAuth do Google (22/09, esta branch, `26666aa`..`0576626`):** nos Ajustes → "Canais do rodízio", conecta a conta do Google, lista inscrições do YouTube, marca quais entram no rodízio — a distribuição entre os 4 grupos é automática. `data.js`/`WEEKS` vira só semente de migração (não é mais editado pra canais do dia a dia). Estado em `progress.channels`, sincroniza pelo Gist como sempre. Revisão final (Opus) achou 1 Critical (canais migrados por handle não casavam com assinaturas OAuth por channelId — duplicava, não desmarcava) + 4 Important (docs desatualizadas, passo do Client ID só no plano, unhandled rejection no OAuth, popup fechado travava 20s) — todos corrigidos e reverificados em `0576626`, sem regressão. 25 testes de lógica pura `ok`; e2e completo (semana real, a11y/axe 0 violações, alvos de toque, sync, canais/OAuth mockado) passando.
 
 ### Pendências, em ordem
-1. ~~**BUG DE SYNC**~~ **RESOLVIDO em 2026-09-21.** Causa: token do GitHub nunca colado nos aparelhos (0 gists na conta). Depois de colar o token (classic, escopo `gist`) nos dois, o gist `99d8ad5d…` foi criado e o progresso sincronizou iPhone ↔ Mac. Detalhe: a API Key do YouTube **não** sincroniza, é por aparelho; no Mac deu "API Key inválida" até colar a mesma chave do iPhone. Ideia em aberto: mensagem de erro distinguir `keyInvalid` de referrer bloqueado.
-2. ~~**`ux-audit`**~~ **FEITO em 2026-09-21** (site publicado, 390 e 1440 px; veredito Conditional Pass). Corrigido na v2.1.1: favicon 404 e botão "Abrir Ajustes" no erro de API Key. Não medido: LCP/INP e throttle 3G. **Cuidado ao testar:** `[data-action=toggle-done-cur]` existe duplicado (um escondido no mobile); `querySelector` pega o escondido, use o visível (`offsetParent !== null`) ou clique por coordenada.
-3. ~~**`pwa-development`**~~ **FEITO em 2026-09-21** (v2.1.2): manifest com `id`/`scope`/`lang`/maskable; `start_url` `./index.html` confirmado offline pelo `sw.js`. Service worker (network-first, `skipWaiting` + `clients.claim`) está adequado; sem prompt de instalação (iPhone só instala pelo Safari, e o Chrome mostra o dele). **Não verificado (só em aparelho):** splash do iOS (não há `apple-touch-startup-image`; pode piscar branco no arranque a frio) e o instalar no Mac pelo Chrome.
-4. **App treino (treino-hibrido) e app financeiro (Bolso · Bittencourt):** aplicar `ux-audit`, `pwa-development`, `mobile-app-ui-design`, `harmonize`, `comprehensive-test`, `verify` (o Filipe quer ver isso "depois do FlowPlayer").
+1. **Filipe: criar o Client ID real no Google Cloud Console** (passo a passo em `README.md`, seção "Conectar canais do YouTube"; também documentado em `docs/superpowers/plans/2026-09-22-canais-oauth.md`, Task 2) e colar em `oauth.js` (`OAUTH_CLIENT_ID`, hoje placeholder `COLE_SEU_CLIENT_ID_AQUI...`).
+2. **Filipe: testar "Conectar com Google" de verdade, em aparelho real**, depois do Client ID colado — confirmar que a tela de consentimento aparece, a lista de inscrições reais carrega, e que reabrir o app depois não pede login de novo (login silencioso, sem popup).
+3. **Merge desta branch em `main` + `git push`** — só depois dos dois itens acima confirmados por ele. Confirme com o Filipe antes (ele usa o app no dia a dia).
+4. Achados menores da revisão final, deferidos (não bloqueiam, sem prazo):
+   - README "Conectar canais" (passo 5) supervaloriza o relogin silencioso — o token é só em memória, então recarregar a página sempre exige clicar "Conectar" de novo (o popup pode fechar sozinho se a conta Google já estiver logada no navegador, mas ainda pede o clique).
+   - A tela principal não re-renderiza sozinha depois de marcar/desmarcar um canal nos Ajustes (nem depois de um sync que encolhe um grupo) — pode mostrar "Nenhum canal marcado" até a próxima ação do usuário. Fix: re-render + clamp de `S.sel` ao fechar Ajustes e depois de sync.
+   - A ordem dos canais na lista mudou de "ordem de `data.js`" para alfabética (`localeCompare`) — decisão do plano, mas não documentada no `CHANGELOG.md`.
+   - `tests/lib.test.mjs` não cobre: `pruneProgress` mantendo `channels`, comutatividade do merge com `channels`, uma entrada de `migrateWeeksChannels` com `channelId` e `handle` juntos.
+   - `diagnostics()` nos Ajustes não mostra quantos canais estão no rodízio (ajudaria a comparar aparelhos, como já faz com marcações).
+   - Cosmético: comentário no topo de `oauth.js` ainda aponta pra "CLAUDE.md, Task 2 deste plano" — Task 2 é conceito do arquivo do plano, não existe em CLAUDE.md; o passo real já está no README §3.
 
 ### Ideias em aberto (só se o Filipe pedir)
-- **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage` (no Chrome do Filipe há `pp_token`, `pp_owner`, `pp_repo` e Firebase ao lado do `fp-config`). Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
-- Mensagem de erro que separe `keyInvalid` de referrer bloqueado (não verificado o formato real da resposta do Google).
-- "Próximo não assistido" pelo **mais antigo** em vez do mais novo (hoje é o mais novo entre os carregados).
+- **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage`. Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
+- Mensagem de erro que separe `keyInvalid` de referrer bloqueado (API Key do YouTube).
+- "Próximo não assistido" pelo **mais antigo** em vez do mais novo.
 - Cachear thumbnails no service worker.
-- Confirmar num aparelho real que o "Mostrar mais" e o offline funcionam no iPhone.
+- Splash do iOS (`apple-touch-startup-image`) e instalar no Mac pelo Chrome — não verificado.
 
 ### Não fazer (decisões fechadas)
 Player embutido, aba Ao Vivo, semana escolhida salva, estado na URL, `data-testid` em massa, framework/build.
 
 ### Como retomar numa sessão nova
 1. Leia este arquivo inteiro e o `CHANGELOG.md`.
-2. `git log --oneline | head` para ver onde parou; `node tests/lib.test.mjs`.
-3. Skills a carregar: `ux-audit`, `pwa-development`, `web-design-guidelines`, `webapp-testing`, `agent-browser` (ver "Como testar").
-
-Fluxo que foi usado: `plan-phase` → `execute-phase` → `verify` → `harmonize` → `comprehensive-test` → `commit-phase`. Se algo quebrar, `diagnose` antes de sair corrigindo.
+2. Confira se está na branch certa: `git branch --show-current` (deve ser `worktree-semana-real-e-canais` até o merge). `git log --oneline | head`; `node tests/lib.test.mjs`.
+3. Se as pendências 1-3 acima já foram resolvidas pelo Filipe, siga pro merge/push. Senão, é só isso que falta.
+4. Próximo item da fila geral (fora deste app): nada — treino e Bolso já foram auditados em 21/09; ver os `CLAUDE.md`/handoff de cada um pras pendências próprias deles.
