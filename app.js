@@ -560,29 +560,60 @@ function toggleChannelSelected(channelId, key, name) {
   renderSettings();
 }
 
+// Canal sem inscrição no YouTube: busca por termo (ex.: pregador que não tem canal próprio).
+// Custa 100 unidades de cota por carga (canal normal custa 1) — usar com moderação.
+function addSearchChannel() {
+  const el = document.getElementById("searchAddInput");
+  const raw = (el?.value || "").trim();
+  if (!raw) return;
+  const { query, name } = FP.parseSearchQuery(raw);
+  if (!query) return;
+  const cur = progress.channels[query];
+  const group = cur ? cur.group : FP.assignGroup(progress.channels);
+  progress.channels[query] = cur
+    ? { ...cur, t: now(), on: true, group }
+    : { t: now(), on: true, group, name, type: "search", query };
+  commit(true);
+  renderSettings();
+}
+
+function renderSearchAdd() {
+  return `
+    <div class="ch-search-add">
+      <p class="hint">Canal sem inscrição (busca por termo ou link de busca do YouTube) — custa mais cota, use com moderação.</p>
+      <div class="ch-search-add__row">
+        <input class="input" id="searchAddInput" type="text" placeholder="Nome ou link de busca do YouTube" autocomplete="off" />
+        <button class="btn" type="button" data-action="add-search">Adicionar</button>
+      </div>
+    </div>`;
+}
+
 function renderChannelsSection() {
-  if (chState.loading) return `<p class="hint">Carregando canais inscritos…</p>`;
-  if (chState.error) return `
+  let oauthPart;
+  if (chState.loading) oauthPart = `<p class="hint">Carregando canais inscritos…</p>`;
+  else if (chState.error) oauthPart = `
     <p class="notice notice--error">${esc(chState.error)}</p>
     <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
-  if (!chState.subs) return `
+  else if (!chState.subs) oauthPart = `
     <p class="hint">Conecte sua conta do Google pra listar os canais que você é inscrito e escolher quais entram no rodízio.</p>
     <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
-  const rows = chState.subs.map((s) => {
-    const [key, cur] = FP.resolveChannelEntry(progress.channels, chIds, s.channelId);
-    const on = FP.isOn(cur);
-    return `
-      <li class="ch-pick ${on ? "is-on" : ""}">
-        ${checkBtn(`data-action="toggle-channel" data-id="${esc(s.channelId)}" data-key="${esc(key || "")}" data-name="${esc(s.name)}"`, on, `${on ? "Remover do" : "Adicionar ao"} rodízio: ${s.name}`)}
-        <span class="ch-pick__name">${esc(s.name)}</span>
-        <span class="ch-pick__group">${on ? esc(GROUP_NAMES[cur.group]) : ""}</span>
-      </li>`;
-  }).join("");
-  return `
-    <p class="hint">${chState.subs.length} canais inscritos. Marcados entram no rodízio — a distribuição entre os 4 grupos é automática.</p>
-    <ul class="ch-pick-list">${rows}</ul>
-    <button class="btn" type="button" data-action="oauth-disconnect">Desconectar do Google</button>
-    <p class="hint">Canal que não é inscrição do YouTube (ex.: busca por termo) só dá pra editar direto em <code>data.js</code>.</p>`;
+  else {
+    const rows = chState.subs.map((s) => {
+      const [key, cur] = FP.resolveChannelEntry(progress.channels, chIds, s.channelId);
+      const on = FP.isOn(cur);
+      return `
+        <li class="ch-pick ${on ? "is-on" : ""}">
+          ${checkBtn(`data-action="toggle-channel" data-id="${esc(s.channelId)}" data-key="${esc(key || "")}" data-name="${esc(s.name)}"`, on, `${on ? "Remover do" : "Adicionar ao"} rodízio: ${s.name}`)}
+          <span class="ch-pick__name">${esc(s.name)}</span>
+          <span class="ch-pick__group">${on ? esc(GROUP_NAMES[cur.group]) : ""}</span>
+        </li>`;
+    }).join("");
+    oauthPart = `
+      <p class="hint">${chState.subs.length} canais inscritos. Marcados entram no rodízio — a distribuição entre os 4 grupos é automática.</p>
+      <ul class="ch-pick-list">${rows}</ul>
+      <button class="btn" type="button" data-action="oauth-disconnect">Desconectar do Google</button>`;
+  }
+  return oauthPart + renderSearchAdd();
 }
 
 function settingsBody() {
@@ -768,6 +799,7 @@ document.addEventListener("click", (e) => {
     case "toggle-channel": toggleChannelSelected(el.dataset.id, el.dataset.key, el.dataset.name); break;
     case "oauth-connect": loadSubscriptions(true); break;
     case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; renderSettings(); break;
+    case "add-search": addSearchChannel(); break;
     case "settings": openSettings(); break;
     case "close-settings": dlg().close(); break;
     case "sync-now": saveSettingsFields(el.closest("form")); syncNow(); break;

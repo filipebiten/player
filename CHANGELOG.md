@@ -2,6 +2,11 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.3.1 — 2026-09-23
+
+### Adicionado
+- **Canal por busca, direto nos Ajustes:** em Ajustes → Canais do rodízio, campo "Nome ou link de busca do YouTube" adiciona um canal sem inscrição (ex.: pregador sem canal próprio, como já era "Andrea Vargas"). Aceita link `youtube.com/results?search_query=...` ou o termo puro. Distribuição de grupo automática, igual aos canais via OAuth. Custa 100 unidades de cota por carga (canal normal custa 1) — usar com moderação.
+
 ## 2.3.0 — 2026-09-22
 
 ### Adicionado

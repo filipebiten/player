@@ -323,3 +323,6 @@ kbd { font: inherit; font-size: var(--fs-xs); padding: 1px 6px; border: 1px soli
 .ch-pick { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) 0; }
 .ch-pick__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-pick__group { font-size: var(--fs-s); color: var(--text-muted); }
+.ch-search-add { margin-top: var(--s3); }
+.ch-search-add__row { display: flex; gap: var(--s2); }
+.ch-search-add__row .input { flex: 1; }

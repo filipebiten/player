@@ -223,3 +223,21 @@ t("mergeProgress deve fazer merge de channels por timestamp", () => {
   const merged = FP.mergeProgress(a, b);
   assert.equal(merged.channels.x.on, false, "merge de channels deve preferir o timestamp maior (t:2, on:false)");
 });
+
+// parseSearchQuery: extrai o termo de um link de busca do YouTube, ou usa texto puro.
+t("parseSearchQuery deve extrair termo de um link de busca do YouTube", () => {
+  const { query, name } = FP.parseSearchQuery("https://www.youtube.com/results?search_query=d+a+carson");
+  assert.equal(query, "d a carson");
+  assert.equal(name, "D A Carson");
+});
+
+t("parseSearchQuery deve decodificar acentos no link", () => {
+  const { query } = FP.parseSearchQuery("https://www.youtube.com/results?search_query=serm%C3%B5es+de+billy+graham");
+  assert.equal(query, "sermões de billy graham");
+});
+
+t("parseSearchQuery deve usar texto puro quando não é link", () => {
+  const { query, name } = FP.parseSearchQuery("  andrea vargas  ");
+  assert.equal(query, "andrea vargas");
+  assert.equal(name, "Andrea Vargas");
+});

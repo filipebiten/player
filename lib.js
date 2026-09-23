@@ -111,6 +111,17 @@
     return [null, null];
   }
 
+  // Extrai o termo de busca de um link "youtube.com/results?search_query=..." colado pelo
+  // usuário, ou usa o texto puro digitado. Nome sugerido = termo em Title Case — a UI não
+  // tem campo de nome separado (deliberadamente simples); dá pra editar depois em data.js.
+  function parseSearchQuery(raw) {
+    raw = String(raw || "").trim();
+    const m = raw.match(/[?&]search_query=([^&]+)/);
+    const query = (m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : raw).trim();
+    const name = query.split(/\s+/).map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(" ");
+    return { query, name };
+  }
+
   function pruneProgress(p, now = Date.now()) {
     p = norm(p);
     const watched = {};
@@ -140,7 +151,7 @@
   const api = {
     CACHE_TTL, weeksSinceEpoch, weekIndexForDate, doneKey, channelKey, escapeHtml,
     emptyProgress, setEntry, isOn, mergeProgress, pruneProgress, relDate, isFresh,
-    assignGroup, migrateWeeksChannels, resolveChannelEntry,
+    assignGroup, migrateWeeksChannels, resolveChannelEntry, parseSearchQuery,
   };
   root.FP = api;
   if (typeof module !== "undefined") module.exports = api;
