@@ -186,8 +186,8 @@ Atualizado em 2026-09-22, no fim do plano **canais-oauth**, branch `worktree-sem
 
 ### Pendências, em ordem
 1. ~~**Filipe: criar o Client ID real no Google Cloud Console**~~ **FEITO em 2026-09-22** (`21f4405`). Client ID colado em `oauth.js` (`OAUTH_CLIENT_ID`).
-2. **Filipe: testar "Conectar com Google" de verdade, em aparelho real** — confirmar que a tela de consentimento aparece, a lista de inscrições reais carrega, e que reabrir o app depois não pede login de novo (login silencioso, sem popup).
-3. **Merge desta branch em `main` + `git push`** — só depois do item acima confirmado por ele. Confirme com o Filipe antes (ele usa o app no dia a dia).
+2. ~~**Filipe: testar "Conectar com Google" de verdade**~~ **FEITO em 2026-09-22**, em `localhost:8765` (CSP de produção) no Chrome real do Filipe. Conectou, 111 canais inscritos listados via OAuth, marcar um canal funcionou (grupo automático), sync com Gist real ok. **Nota:** o clique automatizado (browser automation) não conseguiu abrir o popup do Google — deu timeout de 20s (bloqueador de pop-up trata clique sintético diferente de clique humano). O Filipe clicou ele mesmo na mesma aba e funcionou. **Não verificado ainda:** reabrir o app depois sem pedir login de novo (login silencioso) — token de acesso é só em memória, então F5/fechar aba exige clicar "Conectar" de novo (ver achado #6 abaixo, README supervalorizava isso).
+3. **Merge desta branch em `main` + `git push`** — confirme com o Filipe antes (ele usa o app no dia a dia).
 4. Achados menores da revisão final, deferidos (não bloqueiam, sem prazo):
    - README "Conectar canais" (passo 5) supervaloriza o relogin silencioso — o token é só em memória, então recarregar a página sempre exige clicar "Conectar" de novo (o popup pode fechar sozinho se a conta Google já estiver logada no navegador, mas ainda pede o clique).
    - A tela principal não re-renderiza sozinha depois de marcar/desmarcar um canal nos Ajustes (nem depois de um sync que encolhe um grupo) — pode mostrar "Nenhum canal marcado" até a próxima ação do usuário. Fix: re-render + clamp de `S.sel` ao fechar Ajustes e depois de sync.
