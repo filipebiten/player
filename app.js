@@ -531,8 +531,57 @@ function renderCourses() {
 // ============================================================
 const dlg = () => document.getElementById("settings");
 
-function openSettings() {
-  dlg().innerHTML = `
+// ============================================================
+// AJUSTES — Canais do rodízio (via OAuth do Google, ver oauth.js)
+// ============================================================
+const chState = { subs: null, loading: false, error: "" };
+const GROUP_NAMES = ["Grupo A", "Grupo B", "Grupo C", "Grupo D"];
+
+async function loadSubscriptions(connect) {
+  chState.loading = true; chState.error = ""; renderSettings();
+  try {
+    await (connect ? FPAuth.connect() : FPAuth.getToken());
+    chState.subs = await FPAuth.listSubscriptions();
+  } catch (e) {
+    chState.error = e.message || "Não deu pra conectar com o Google.";
+  }
+  chState.loading = false; renderSettings();
+}
+
+function toggleChannelSelected(channelId, name) {
+  const cur = progress.channels[channelId];
+  const on = !FP.isOn(cur);
+  const group = on ? (cur ? cur.group : FP.assignGroup(progress.channels)) : (cur ? cur.group : 0);
+  progress.channels[channelId] = { t: now(), on, group, name, type: "channel", channelId };
+  commit(false);
+  renderSettings();
+}
+
+function renderChannelsSection() {
+  if (chState.loading) return `<p class="hint">Carregando canais inscritos…</p>`;
+  if (chState.error) return `
+    <p class="notice notice--error">${esc(chState.error)}</p>
+    <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
+  if (!chState.subs) return `
+    <p class="hint">Conecte sua conta do Google pra listar os canais que você é inscrito e escolher quais entram no rodízio.</p>
+    <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
+  const rows = chState.subs.map((s) => {
+    const cur = progress.channels[s.channelId], on = FP.isOn(cur);
+    return `
+      <li class="ch-pick ${on ? "is-on" : ""}">
+        ${checkBtn(`data-action="toggle-channel" data-id="${esc(s.channelId)}" data-name="${esc(s.name)}"`, on, `${on ? "Remover do" : "Adicionar ao"} rodízio: ${s.name}`)}
+        <span class="ch-pick__name">${esc(s.name)}</span>
+        <span class="ch-pick__group">${on ? esc(GROUP_NAMES[cur.group]) : ""}</span>
+      </li>`;
+  }).join("");
+  return `
+    <p class="hint">${chState.subs.length} canais inscritos. Marcados entram no rodízio — a distribuição entre os 4 grupos é automática.</p>
+    <ul class="ch-pick-list">${rows}</ul>
+    <button class="btn" type="button" data-action="oauth-disconnect">Desconectar do Google</button>`;
+}
+
+function settingsBody() {
+  return `
     <form class="sheet__body" data-form="settings" autocomplete="off">
       <div class="sheet__head">
         <h2 id="settings-title">Ajustes</h2>
@@ -547,6 +596,10 @@ function openSettings() {
       <p class="hint">Token clássico só com o escopo <strong>gist</strong> — <a class="link" href="${TOKEN_URL}" target="_blank" rel="noopener">criar token</a>. Fica só neste aparelho.</p>
       <p class="status-line" id="sync-status" data-state="${sync.state}" role="status">${esc(syncStatusText())}</p>
       <p class="hint">${esc(diagnostics())}</p>
+      <section class="settings__section">
+        <h3 class="settings__title">Canais do rodízio</h3>
+        ${renderChannelsSection()}
+      </section>
       <p class="notice notice--error form-error" role="alert" hidden></p>
       <div class="sheet__actions">
         <button class="btn btn--primary" type="submit">Salvar ajustes</button>
@@ -554,7 +607,18 @@ function openSettings() {
         <button class="btn" type="button" data-action="close-settings">Fechar</button>
       </div>
     </form>`;
+}
+
+// Trocar innerHTML de um <dialog> já aberto não fecha ele — dá pra reusar pra re-render
+// depois de ações assíncronas (conectar, listar, marcar canal) sem duplicar o template.
+function renderSettings() {
+  dlg().innerHTML = settingsBody();
+}
+
+function openSettings() {
+  renderSettings();
   dlg().showModal();
+  if (FPAuth.isConnected() && !chState.subs) loadSubscriptions(false);
 }
 
 // ============================================================
@@ -696,6 +760,9 @@ document.addEventListener("click", (e) => {
     case "more": loadMore(curCh()); break;
     case "next-platform": nextPlatform(); break;
     case "next-course": nextCourse(); break;
+    case "toggle-channel": toggleChannelSelected(el.dataset.id, el.dataset.name); break;
+    case "oauth-connect": loadSubscriptions(true); break;
+    case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; renderSettings(); break;
     case "settings": openSettings(); break;
     case "close-settings": dlg().close(); break;
     case "sync-now": saveSettingsFields(el.closest("form")); syncNow(); break;
