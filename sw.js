@@ -3,7 +3,7 @@
 // mudar versão a cada publicação. Só arquivos do próprio site e as fontes; APIs (YouTube, GitHub) nunca passam por aqui.
 const SHELL = "fp-shell";
 const FONTS = "fp-fonts";
-const FILES = ["./", "index.html", "styles.css", "data.js", "lib.js", "app.js", "manifest.json", "icon-192.png", "icon-512.png"];
+const FILES = ["./", "index.html", "styles.css", "data.js", "lib.js", "oauth.js", "app.js", "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

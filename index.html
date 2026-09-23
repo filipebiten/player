@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com; connect-src https://www.googleapis.com https://api.github.com https://gist.githubusercontent.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.ytimg.com; connect-src https://www.googleapis.com https://api.github.com https://gist.githubusercontent.com https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -25,9 +25,15 @@
   <dialog id="settings" class="sheet" aria-labelledby="settings-title"></dialog>
   <noscript><p style="padding:24px">O FlowPlayer precisa de JavaScript.</p></noscript>
 
-  <!-- ordem importa: dados → lógica pura → app -->
+  <!-- ordem importa: dados → lógica pura → GIS (Google) → auth (usa o GIS) → app -->
   <script src="data.js"></script>
   <script src="lib.js"></script>
+  <!-- Sem integrity (SRI) de propósito: a doc do Google (developers.google.com/identity/gsi/web/guides/get-google-api-clientid)
+       diz que accounts.google.com/gsi/client não é pra ser auto-hospedado nem fixado por hash — ele muda no servidor do
+       Google pra aplicar correções de segurança, e um SRI hash quebraria a integração toda vez que isso acontecesse.
+       O CSP (script-src restrito a 'self' + esse domínio exato) já é a defesa aqui, não SRI. -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="oauth.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

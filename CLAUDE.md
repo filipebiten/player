@@ -6,22 +6,23 @@ Leia este arquivo inteiro antes de mexer em qualquer coisa. Ele foi escrito para
 
 App web pessoal do Filipe para acompanhar **canais do YouTube** e **cursos online** em **rodízio semanal**. Ele usa no iPhone (instalado como PWA) e no computador. Repo público: `github.com/filipebiten/player`, publicado no GitHub Pages em `https://filipebiten.github.io/player/`.
 
-Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe um vídeo, assiste no YouTube e marca. Quando termina o canal, marca "concluído nesta semana". Nos cursos, anota "onde parei" e passa a vez para a próxima plataforma.
+Uso: a cada semana real há um grupo de canais. Filipe abre o canal, escolhe um vídeo, assiste no YouTube e marca. Quando termina o canal, marca "concluído nesta semana". Nos cursos, anota "onde parei" e passa a vez para a próxima plataforma.
 
 ## Restrições que não mudam
 
 - **Estático, sem build, sem framework, sem dependência paga.** Tem que rodar no GitHub Pages como está. Nada de npm no app (o `node` só roda o teste de `lib.js`).
 - **Identidade visual:** fundo `#0B0E14`, destaque âmbar `#F59E0B`, fonte Outfit, ícones `icon-192.png` e `icon-512.png`. Tokens em `:root` de `styles.css`.
-- **Nenhuma chave ou token no repo** (ele é público). API Key e token do Gist ficam só no `localStorage` de cada aparelho.
+- **Nenhuma chave ou token no repo** (ele é público). API Key e token do Gist ficam só no `localStorage` de cada aparelho. Exceção: o **OAuth Client ID** do Google, hardcoded em `oauth.js` — não é segredo, é seguro publicar (é assim que todo exemplo oficial do Google faz); o que é secreto é o token de acesso, que nunca é persistido.
 - Sem animações decorativas (o `prefers-reduced-motion` é respeitado).
 
 ## Estrutura de arquivos
 
 | Arquivo | Papel |
 |---|---|
-| `index.html` | Casca: meta tags do PWA, **CSP**, `<div id="app">`, `<dialog id="settings">`, carrega os 3 scripts nesta ordem: `data.js` → `lib.js` → `app.js`. |
-| `data.js` | **Listas `WEEKS` (canais) e `PLATFORMS` (cursos).** É onde se edita conteúdo. |
-| `lib.js` | Lógica **pura** (sem DOM nem rede): semana pelo dia, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
+| `index.html` | Casca: meta tags do PWA, **CSP**, `<div id="app">`, `<dialog id="settings">`, carrega os scripts nesta ordem: `data.js` → `lib.js` → script do GIS (`accounts.google.com/gsi/client`) → `oauth.js` → `app.js`. |
+| `data.js` | **Listas `WEEKS` (canais) e `PLATFORMS` (cursos).** Hoje só é semente da migração automática de canais (ver "Onde editar canais") — `PLATFORMS` (cursos) continua editado aqui. |
+| `lib.js` | Lógica **pura** (sem DOM nem rede): semana pela data real, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
+| `oauth.js` | Wrapper do Google Identity Services (modelo "token", client-side puro, sem backend) — só pra listar as inscrições do YouTube via OAuth. Expõe `window.FPAuth`. O Client ID não é segredo (seguro publicar num repo público); o token de acesso fica só em memória. |
 | `app.js` | Estado, chamadas à API do YouTube, cache, progresso, sync do Gist, render (`innerHTML` + delegação de eventos por `data-action`), atalhos. |
 | `styles.css` | Tokens, componentes e layout. Mobile primeiro; duas colunas a partir de `min-width: 900px`. |
 | `sw.js` | Service worker: o app abre offline. Network-first (ver "Service worker"). |
@@ -36,7 +37,9 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 ## Regras fechadas
 
 ### Semana automática
-`FP.weekIndexForDate(date)` = `min(3, floor((diaDoMês - 1) / 7))`. Dia 1–7 → Semana 1 (índice 0), 8–14 → 2, 15–21 → 3, **22 em diante → 4** (inclui 29–31). O app **sempre abre na semana de hoje**; a semana escolhida manualmente não é salva. Navegação entre semanas: seletor 1–4 na lista de canais e teclas `[` `]`. Se o app voltar ao primeiro plano em outro dia que mude a semana, ele reposiciona (`visibilitychange`). O `getWeekIndex` antigo (semana do ano módulo 4) foi removido: não volte a ele.
+`FP.weekIndexForDate(date)` = `((FP.weeksSinceEpoch(date) % 4) + 4) % 4`. `weeksSinceEpoch` conta semanas-calendário inteiras (segunda a domingo) desde uma âncora fixa (segunda-feira 1970-01-05) — cresce 1 por semana real, para sempre, sem reset por mês nem descontinuidade em virada de ano (mesmo em anos com 53 semanas ISO). O app **sempre abre no grupo da semana de hoje**; navegar manualmente não é salvo. Navegação entre grupos: setas `.weeknav` na lista de canais e teclas `[` `]` (clamped em 0-3, não dá volta). Se o app voltar ao primeiro plano numa semana diferente, reposiciona (`visibilitychange`). Não há mais rótulo "Semana N" na tela principal — o texto é "Canais desta semana" (grupo de hoje) ou "Outro grupo de canais" (navegou manualmente). A fórmula antiga por bloco de dia-do-mês (`min(3, floor((diaDoMês-1)/7))`, v2.0-2.1) foi removida: não coincidia com semanas-calendário reais quando o mês não começava numa segunda. Não volte a ela.
+
+Os "4 grupos" que giram por semana agora vêm de `progress.channels` (não mais de `WEEKS` direto) — ver "Onde editar canais". Nos Ajustes eles aparecem como "Grupo A/B/C/D"; na tela principal, nunca com número.
 
 ### Modelo de dados do progresso
 
@@ -59,12 +62,13 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
   "watched": { "<videoId>": { "t": 1789995575282, "on": true } },
   "done":    { "2026-09-3": { "<channelKey>": { "t": 1789995600000, "on": true } } },
   "courses": { "Hotmart|Investidor 33 Dias": { "t": 1789995606223, "lastLesson": "Módulo 7, aula 3" } },
-  "rot":     { "t": 1789995606448, "p": 1, "c": 0 }
+  "rot":     { "t": 1789995606448, "p": 1, "c": 0 },
+  "channels": { "thejesuscopy": { "t": 1789995600000, "on": true, "group": 0, "name": "JesusCopy", "type": "channel", "handle": "thejesuscopy" } }
 }
 ```
 
 - `watched`: check por vídeo, indexado por `videoId`.
-- `done`: chave `ANO-MÊS-SEMANA` (`FP.doneKey`, semana de 1 a 4, mês com 2 dígitos). O **mês vem da data de hoje**, então zera sozinho no mês seguinte, e consultar outra semana mostra o progresso dessa semana no mês atual. A chave interna é o `channelKey`.
+- `done`: chave `w<N>` (`FP.doneKey`), onde `N` é `weeksSinceEpoch` — uma chave por semana-calendário real. Muda sozinha toda semana, então quando um grupo volta a aparecer (~4 semanas depois) o progresso já nasce zerado. A chave interna é o `channelKey`.
 - **`channelKey`** = `channelId` ‖ `handle` ‖ `query` (`FP.channelKey`). **Nunca o índice** na lista. Por isso reordenar `WEEKS` não quebra o progresso, mas **renomear handle/channelId/query zera o progresso daquele canal**.
 - `courses`: chave `"<nome da plataforma>|<nome do curso>"`. `lastLesson` no `PLATFORMS` é só o **valor inicial**; depois de editado no app vale o salvo.
 - `rot`: rodízio dos cursos (`p` = índice da plataforma da vez, `c` = índice do curso).
@@ -112,17 +116,19 @@ Uso: a cada semana do mês há um grupo de canais. Filipe abre o canal, escolhe 
 
 ### Segurança
 - **Todo texto vindo de API/dados passa por `FP.escapeHtml` (`esc()`) antes de entrar em `innerHTML`.** Mantenha isso ao adicionar campos.
-- **CSP** em `index.html` (meta): `connect-src` só `googleapis.com`, `api.github.com`, `gist.githubusercontent.com`; scripts só `'self'`. Se adicionar um domínio (fonte, API, imagem), **atualize a CSP** ou o recurso será bloqueado.
+- **CSP** em `index.html` (meta): `connect-src` inclui `googleapis.com`, `api.github.com`, `gist.githubusercontent.com` e `accounts.google.com/gsi/` (OAuth); `script-src` é `'self'` mais `accounts.google.com/gsi/client` (script do GIS); há também `frame-src https://accounts.google.com/gsi/` pro popup de login. Se adicionar um domínio (fonte, API, imagem), **atualize a CSP** ou o recurso será bloqueado.
 - Links externos: `target="_blank" rel="noopener noreferrer"`.
 - O token com escopo `gist` lê e escreve todos os gists do Filipe (não existe escopo menor). Fica só em `fp-config`. Nunca logue nem exiba o token.
 
-## Onde editar canais e cursos
+## Onde editar canais
 
-Em **`data.js`**.
+**Não edite mais `data.js` pra canais do dia a dia.** Ele só serve como semente da migração automática (`FP.migrateWeeksChannels`, chamada uma única vez, na primeira carga de cada aparelho que ainda não tem `progress.channels`). Depois disso, `WEEKS` nunca mais é lido em runtime.
 
-> **NÃO ALTERE `name`, `handle`, `channelId` nem `query` dos itens existentes.** O progresso salvo é indexado por eles (ver `channelKey`). Os valores atuais foram copiados byte a byte do `index.html` original e conferidos com `diff`. Para **adicionar** um canal, acrescente um item novo no fim da semana; para **remover**, apague o item (o progresso dele fica órfão e é podado sozinho).
+Canais são adicionados/removidos pelo app: **Ajustes → Canais do rodízio → Conectar com Google**, que lista as inscrições do YouTube (via OAuth, `oauth.js`) e deixa marcar quais entram. A distribuição entre os 4 grupos é automática (`FP.assignGroup`: sempre o grupo com menos canais `on`).
 
-Formato de canal: `{ name, handle, type: "channel" }`, ou `{ name, channelId, type: "channel" }`, ou `{ name, query, type: "search" }` (busca por vídeos recentes; custa 100 de cota por carga). Formato de plataforma: `{ name, url, color, courses: [{ name, lastLesson }] }`.
+O estado fica em `progress.channels` (dentro do mesmo `fp-progress`/Gist de sempre): mapa `channelKey -> {t, on, group, name, type, channelId?, handle?, query?}`, mesmo padrão de merge por timestamp de `watched`/`done`/`courses`. **channelKey dos 27 canais migrados de `data.js` continua sendo `channelId‖handle‖query`, exatamente como antes** — preserva `watched`/`done` de quem já usava o app antes desta mudança. Canais adicionados via OAuth depois disso sempre usam `channelId` puro (é tudo que a API de inscrições devolve).
+
+Cursos (`PLATFORMS`) continuam em `data.js`, sem mudança.
 
 ## Como publicar
 
@@ -147,7 +153,7 @@ bash setup-flow.sh            # primeira execução: tela inicial com/sem token
 ```
 
 - `seed.js` injeta `fp-config` e um `fp-vidcache` fictício (27 canais × 6 vídeos) via `agent-browser eval`, para testar a interface sem rede.
-- `redirect.js` (`--init-script`) redireciona `api.github.com` e `googleapis.com` para o mock local; `fakedate.js` simula o dia do mês.
+- `redirect.js` (`--init-script`) redireciona `api.github.com` e `googleapis.com` para o mock local; `fakedate.js` simula uma data completa (`__fakeDate`, `"YYYY-MM-DD"`) — `__fakeDay` (dia do mês, set/2026 fixo) é mantido só por compatibilidade.
 - Os scripts são **bash** (em zsh, `$A` com espaços não separa em palavras: rode com `bash arquivo.sh`).
 - Para falar com o mock a partir do shell, use Python `urllib` (o `curl` pode ser bloqueado por hooks do Claude Code).
 - Depois de mudar `app.js`, `styles.css` ou `index.html`, rode `setup.sh` de novo (ele recopia a cópia de teste).
@@ -169,33 +175,38 @@ Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
 
 ## Roadmap e estado atual (retomar daqui)
 
-Atualizado em 2026-09-21, logo depois de publicar a **v2.1.0** (`d22e933` em `main`, no ar no GitHub Pages).
+Atualizado em 2026-09-22, logo depois de mergear o plano **canais-oauth** em `main` (branch `worktree-semana-real-e-canais` mergeada e removida).
 
 ### Já feito
-- **v2.0.0:** reformulação completa (semana automática, sem player, cache 6 h, progresso por vídeo/canal, cursos, layout mobile/desktop, atalhos, sync via Gist, CSP, acessibilidade).
-- **v2.1.0:** "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação do token ao salvar, indicador de sync sempre visível, diagnóstico no Ajustes.
-- **Testado no iPhone pelo Filipe (v2.0):** vídeo abre no app do YouTube, canal abre certo, layout "muito bom". **A v2.1 ainda não foi testada em aparelho.**
-- Testado só com mocks (sem chave/token reais): sync, API do YouTube, offline, semana por dia do mês, axe (0 violações), alvos de toque.
+- **v2.0.0 / v2.1.x (21/09):** reformulação completa + "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação de token, diagnóstico nos Ajustes. Publicado em `main`, no ar.
+- **`ux-audit` e `pwa-development` no FlowPlayer publicado (21/09):** Conditional Pass, corrigido em v2.1.1/v2.1.2 (favicon, botão de erro de API Key, manifest com id/scope/lang/maskable).
+- **App treino (treino-hibrido) e app financeiro (Bolso · Bittencourt) (21/09, noite):** `ux-audit` + `mobile-app-ui-design` + `pwa-development` + `harmonize` + `comprehensive-test` + `verify` já rodados nos dois. Treino: `c6a9dd4`. Bolso: `4b47e89` (achou bug real de Histórico negativo). Pendências próprias de cada um, não deste roadmap.
+- **Semana real (22/09, `f673568`):** `FP.weekIndexForDate` passa a usar semana-calendário real (segunda-domingo) em vez de bloco de dia do mês; navegação vira setas sem número "Semana N" na tela principal.
+- **Canais via OAuth do Google (22/09, `26666aa`..`0576626`):** nos Ajustes → "Canais do rodízio", conecta a conta do Google, lista inscrições do YouTube, marca quais entram no rodízio — a distribuição entre os 4 grupos é automática. `data.js`/`WEEKS` vira só semente de migração (não é mais editado pra canais do dia a dia). Estado em `progress.channels`, sincroniza pelo Gist como sempre. Revisão final (Opus) achou 1 Critical (canais migrados por handle não casavam com assinaturas OAuth por channelId — duplicava, não desmarcava) + 4 Important (docs desatualizadas, passo do Client ID só no plano, unhandled rejection no OAuth, popup fechado travava 20s) — todos corrigidos e reverificados em `0576626`, sem regressão. 25 testes de lógica pura `ok`; e2e completo (semana real, a11y/axe 0 violações, alvos de toque, sync, canais/OAuth mockado) passando.
+- **Client ID real do OAuth colado e testado em aparelho real (22/09, `21f4405`):** Filipe conectou a conta do Google de verdade — 111 canais inscritos listados, marcar/desmarcar funcionou (grupo automático), sync com Gist real ok.
 
 ### Pendências, em ordem
-1. ~~**BUG DE SYNC**~~ **RESOLVIDO em 2026-09-21.** Causa: token do GitHub nunca colado nos aparelhos (0 gists na conta). Depois de colar o token (classic, escopo `gist`) nos dois, o gist `99d8ad5d…` foi criado e o progresso sincronizou iPhone ↔ Mac. Detalhe: a API Key do YouTube **não** sincroniza, é por aparelho; no Mac deu "API Key inválida" até colar a mesma chave do iPhone. Ideia em aberto: mensagem de erro distinguir `keyInvalid` de referrer bloqueado.
-2. ~~**`ux-audit`**~~ **FEITO em 2026-09-21** (site publicado, 390 e 1440 px; veredito Conditional Pass). Corrigido na v2.1.1: favicon 404 e botão "Abrir Ajustes" no erro de API Key. Não medido: LCP/INP e throttle 3G. **Cuidado ao testar:** `[data-action=toggle-done-cur]` existe duplicado (um escondido no mobile); `querySelector` pega o escondido, use o visível (`offsetParent !== null`) ou clique por coordenada.
-3. ~~**`pwa-development`**~~ **FEITO em 2026-09-21** (v2.1.2): manifest com `id`/`scope`/`lang`/maskable; `start_url` `./index.html` confirmado offline pelo `sw.js`. Service worker (network-first, `skipWaiting` + `clients.claim`) está adequado; sem prompt de instalação (iPhone só instala pelo Safari, e o Chrome mostra o dele). **Não verificado (só em aparelho):** splash do iOS (não há `apple-touch-startup-image`; pode piscar branco no arranque a frio) e o instalar no Mac pelo Chrome.
-4. ~~**App treino e app financeiro**~~ **FEITO em 2026-09-21.** `ux-audit` + `mobile-app-ui-design` + `pwa-development` + `harmonize` + `comprehensive-test` + `verify` nos dois. Treino: `c6a9dd4` (contraste, retomada de treino interrompido, SW network-first, `scripts/e2e.sh`). Bolso: `4b47e89` (bug real — Histórico voltava negativo; a11y; PWA). Roadmap completo em cada projeto. **Isso fecha o roadmap deste arquivo.**
+1. **"Andrea Vargas" ainda é canal do tipo `search`, não `channel`** (custa 100 unidades de cota por carga, e — desde a v2.3.0 — fica de fora da tela de Ajustes → Canais do rodízio, porque busca não tem `channelId` pra casar com a lista de inscrições do OAuth). **Prioridade combinada com o Filipe (22/09): resolver antes das próximas features.** Como fazer: achar o `channelId` real do canal dela no YouTube (abrir o canal, olhar a URL ou usar a API), trocar o item em `data.js`/`progress.channels` de `{name, query, type:"search"}` pra `{name, channelId, type:"channel"}`. **Cuidado:** isso muda a `channelKey` (`query` → `channelId`), então o histórico de `watched`/`done` dela **zera** — avisar o Filipe antes de fazer.
+2. Achados menores da revisão final do plano canais-oauth, deferidos (não bloqueiam, sem prazo):
+   - README "Conectar canais" (passo 5) supervaloriza o relogin silencioso — o token é só em memória, então recarregar a página sempre exige clicar "Conectar" de novo (o popup pode fechar sozinho se a conta Google já estiver logada no navegador, mas ainda pede o clique).
+   - A tela principal não re-renderiza sozinha depois de marcar/desmarcar um canal nos Ajustes (nem depois de um sync que encolhe um grupo) — pode mostrar "Nenhum canal marcado" até a próxima ação do usuário. Fix: re-render + clamp de `S.sel` ao fechar Ajustes e depois de sync.
+   - A ordem dos canais na lista mudou de "ordem de `data.js`" para alfabética (`localeCompare`) — decisão do plano, mas não documentada no `CHANGELOG.md`.
+   - `tests/lib.test.mjs` não cobre: `pruneProgress` mantendo `channels`, comutatividade do merge com `channels`, uma entrada de `migrateWeeksChannels` com `channelId` e `handle` juntos.
+   - `diagnostics()` nos Ajustes não mostra quantos canais estão no rodízio (ajudaria a comparar aparelhos, como já faz com marcações).
+   - Cosmético: comentário no topo de `oauth.js` ainda aponta pra "CLAUDE.md, Task 2 deste plano" — Task 2 é conceito do arquivo do plano, não existe em CLAUDE.md; o passo real já está no README §3.
 
 ### Ideias em aberto (só se o Filipe pedir)
-- **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage` (no Chrome do Filipe há `pp_token`, `pp_owner`, `pp_repo` e Firebase ao lado do `fp-config`). Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
-- Mensagem de erro que separe `keyInvalid` de referrer bloqueado (não verificado o formato real da resposta do Google).
-- "Próximo não assistido" pelo **mais antigo** em vez do mais novo (hoje é o mais novo entre os carregados).
+- **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage`. Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
+- Mensagem de erro que separe `keyInvalid` de referrer bloqueado (API Key do YouTube).
+- "Próximo não assistido" pelo **mais antigo** em vez do mais novo.
 - Cachear thumbnails no service worker.
-- Confirmar num aparelho real que o "Mostrar mais" e o offline funcionam no iPhone.
+- Splash do iOS (`apple-touch-startup-image`) e instalar no Mac pelo Chrome — não verificado.
 
 ### Não fazer (decisões fechadas)
 Player embutido, aba Ao Vivo, semana escolhida salva, estado na URL, `data-testid` em massa, framework/build.
 
 ### Como retomar numa sessão nova
 1. Leia este arquivo inteiro e o `CHANGELOG.md`.
-2. `git log --oneline | head` para ver onde parou; `node tests/lib.test.mjs`.
-3. Skills a carregar: `ux-audit`, `pwa-development`, `web-design-guidelines`, `webapp-testing`, `agent-browser` (ver "Como testar").
-
-Fluxo que foi usado: `plan-phase` → `execute-phase` → `verify` → `harmonize` → `comprehensive-test` → `commit-phase`. Se algo quebrar, `diagnose` antes de sair corrigindo.
+2. `git log --oneline | head` pra ver onde parou; `node tests/lib.test.mjs`.
+3. Pendência 1 (canal "Andrea Vargas" de `search` pra `channel`) é a prioridade combinada com o Filipe. As demais são achados menores, sem prazo.
+4. Próximo item da fila geral (fora deste app): nada — treino e Bolso já foram auditados em 21/09; ver os `CLAUDE.md`/handoff de cada um pras pendências próprias deles.

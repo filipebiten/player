@@ -1,5 +1,5 @@
 A="agent-browser --session a11y"
-$A eval "localStorage.setItem('__fakeDay','30')" >/dev/null; $A set viewport 390 844 >/dev/null; $A reload >/dev/null; $A wait 500 >/dev/null
+$A eval "localStorage.removeItem('__fakeDate')" >/dev/null; $A eval "localStorage.setItem('__fakeDay','30')" >/dev/null; $A set viewport 390 844 >/dev/null; $A reload >/dev/null; $A wait 500 >/dev/null
 echo "dia 30 -> $($A eval 'document.querySelector(".weekbar__title").textContent')"
 JS='[...document.querySelectorAll("button,a[href],input")].filter(e=>e.offsetParent!==null||e.closest("dialog[open]")).map(e=>{const r=e.getBoundingClientRect();return {t:(e.dataset.action||e.tagName)+":"+(e.className||""),w:Math.round(r.width),h:Math.round(r.height)}}).filter(x=>x.w<44||x.h<44)'
 for view in lista canal cursos; do

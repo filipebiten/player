@@ -85,7 +85,7 @@ h1, h2 { text-wrap: balance; }
   .btn--primary:hover { background: var(--accent-strong); border-color: var(--accent-strong); }
   .btn--primary[aria-pressed="true"]:hover { background: var(--surface-2); }
   .icon-btn:hover { background: var(--surface-2); color: var(--text); }
-  .tab:not([aria-current="page"]):hover, .seg__btn:not([aria-pressed="true"]):hover { color: var(--text); }
+  .tab:not([aria-current="page"]):hover { color: var(--text); }
   .check:hover .check__box { border-color: var(--accent); }
 }
 
@@ -146,19 +146,11 @@ h1, h2 { text-wrap: balance; }
 
 /* ---------- semana + progresso ---------- */
 .weekbar { padding: var(--s4); border-bottom: 1px solid var(--border); }
-.weekbar__head { display: flex; align-items: baseline; gap: var(--s2); margin-bottom: var(--s3); }
+.weekbar__head { display: flex; align-items: baseline; gap: var(--s2); margin-bottom: var(--s3); flex-wrap: wrap; }
 .weekbar__title { font-size: var(--fs-xl); font-weight: 700; }
 .weekbar__count { margin-left: auto; font-size: var(--fs-s); color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s1); padding: 3px; background: var(--surface); border-radius: var(--radius-m); }
-.seg__btn {
-  position: relative; min-height: 44px; border-radius: var(--radius-s); font-weight: 600; color: var(--text-muted);
-  transition: background-color .12s, color .12s;
-}
-.seg__btn[aria-pressed="true"] { background: var(--surface-3); color: var(--text); }
-.seg__btn.is-today::after {
-  content: ""; position: absolute; left: 50%; bottom: 6px; width: 5px; height: 5px; margin-left: -2.5px;
-  border-radius: 50%; background: var(--accent);
-}
+.weeknav { display: flex; align-items: center; gap: var(--s1); }
+.weeknav .icon-btn:disabled { opacity: .35; pointer-events: none; }
 .bar { height: 6px; margin-top: var(--s3); border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 
@@ -323,3 +315,11 @@ kbd { font: inherit; font-size: var(--fs-xs); padding: 1px 6px; border: 1px soli
 }
 /* legenda some em telas sem mouse (tablet touch) */
 @media (min-width: 900px) and (hover: none) { .legend { display: none; } }
+
+/* ---------- Ajustes: seção Canais ---------- */
+.settings__section { margin-top: var(--s4); padding-top: var(--s4); border-top: 1px solid var(--border); }
+.settings__title { font-size: var(--fs-l); font-weight: 600; margin-bottom: var(--s2); }
+.ch-pick-list { display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow-y: auto; }
+.ch-pick { display: flex; align-items: center; gap: var(--s2); padding: var(--s1) 0; }
+.ch-pick__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-pick__group { font-size: var(--fs-s); color: var(--text-muted); }

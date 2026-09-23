@@ -24,6 +24,13 @@ if (!config) {
   try { localStorage.removeItem("fp-state"); } catch {}
 }
 let progress = FP.mergeProgress(FP.emptyProgress(), store.get("fp-progress", null)); // sincroniza
+// Semente única: se este aparelho nunca teve progress.channels (nem local nem vindo do
+// Gist), migra os 27 canais fixos de data.js pro formato novo. t=1 (bem antigo) garante que
+// se OUTRO aparelho já tiver dado real no Gist, o merge deixa o dado real vencer.
+if (!Object.keys(progress.channels).length) {
+  progress.channels = FP.migrateWeeksChannels(WEEKS, 1);
+  store.set("fp-progress", progress);
+}
 // {channelKey: {t, vids, next, uploads}} — 6h; entradas da v2.0 (sem "next") são descartadas
 let vidCache = Object.fromEntries(Object.entries(store.get("fp-vidcache", {})).filter(([, c]) => "next" in c));
 let chIds = store.get("fp-chid", {});        // handle → channelId (não expira)
@@ -44,9 +51,12 @@ const S = {
 let todayWeek = S.week;
 
 const narrow = () => !matchMedia("(min-width: 900px)").matches;
-const week = () => WEEKS[S.week];
-const curCh = () => week().channels[S.sel];
-const doneKey = () => FP.doneKey(new Date(), S.week);
+const channelsInGroup = (g) => Object.values(progress.channels)
+  .filter((c) => FP.isOn(c) && c.group === g)
+  .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+const week = () => ({ channels: channelsInGroup(S.week) });
+const curCh = () => week().channels[S.sel] || null;
+const doneKey = () => FP.doneKey(new Date());
 const isDone = (ch) => FP.isOn(progress.done[doneKey()]?.[FP.channelKey(ch)]);
 const isWatched = (id) => FP.isOn(progress.watched[id]);
 const firstOpen = () => { const i = week().channels.findIndex((c) => !isDone(c)); return i < 0 ? 0 : i; };
@@ -144,6 +154,7 @@ function errMsg(e) {
 
 // Lista por canal em cache por 6h (FP.CACHE_TTL). force=true ignora o cache (botão recarregar).
 async function loadChannel(ch, force = false) {
+  if (!ch) return;
   const k = FP.channelKey(ch), cached = vidCache[k];
   if (!force && FP.isFresh(cached)) return;
   if (S.loadingKey === k) return;
@@ -194,6 +205,7 @@ function commit(rerender = true) {
 }
 
 function toggleDone(ch) {
+  if (!ch) return;
   const k = doneKey();
   const m = (progress.done[k] ||= {});
   FP.setEntry(m, FP.channelKey(ch), !isDone(ch), now());
@@ -249,7 +261,9 @@ window.addEventListener("popstate", () => { S.view = "list"; render(); window.sc
 
 // J/K: muda o canal selecionado sem trocar de tela
 function moveSel(delta) {
-  const n = week().channels.length, i = Math.max(0, Math.min(n - 1, S.sel + delta));
+  const n = week().channels.length;
+  if (!n) return;
+  const i = Math.max(0, Math.min(n - 1, S.sel + delta));
   if (i === S.sel) return;
   S.sel = i; S.error = "";
   render();
@@ -374,29 +388,33 @@ function renderApp() {
 }
 
 const doneButton = (extra = "") => {
-  const done = isDone(curCh());
+  const ch = curCh();
+  if (!ch) return "";
+  const done = isDone(ch);
   return `<button class="btn btn--primary ${extra}" data-action="toggle-done-cur" aria-pressed="${done}">${I.check}${done ? "Canal concluído" : "Marcar canal concluído"}</button>`;
 };
 
 function renderVideosTab() {
   const w = week(), total = w.channels.length, done = w.channels.filter(isDone).length;
   const pct = total ? Math.round((done / total) * 100) : 0;
+  const isCurrent = S.week === todayWeek;
   return `
     <div class="split">
-      <section class="pane-list" aria-label="Canais da ${esc(w.label)}">
+      <section class="pane-list" aria-label="${isCurrent ? "Canais desta semana" : "Outro grupo de canais"}" data-group="${S.week}">
         <div class="weekbar">
           <div class="weekbar__head">
-            <h2 class="weekbar__title">${esc(w.label)}</h2>
-            ${S.week === todayWeek ? '<span class="pill">Atual</span>' : ""}
+            <div class="weeknav">
+              <button class="icon-btn" data-action="week-prev" aria-label="Grupo anterior" ${S.week === 0 ? "disabled" : ""}>${I.back}</button>
+              <h2 class="weekbar__title">${isCurrent ? "Canais desta semana" : "Outro grupo de canais"}</h2>
+              <button class="icon-btn" data-action="week-next" aria-label="Próximo grupo" ${S.week === 3 ? "disabled" : ""}>${I.go}</button>
+            </div>
+            ${isCurrent ? '<span class="pill">Atual</span>' : ""}
             <span class="weekbar__count">${done} de ${total} concluídos</span>
-          </div>
-          <div class="seg" role="group" aria-label="Escolher semana">
-            ${WEEKS.map((_, i) => `<button class="seg__btn ${i === todayWeek ? "is-today" : ""}" data-action="week" data-i="${i}" aria-pressed="${i === S.week}" aria-label="Semana ${i + 1}${i === todayWeek ? " (atual)" : ""}">${i + 1}</button>`).join("")}
           </div>
           <div class="bar" role="progressbar" aria-label="Canais concluídos nesta semana" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${pct}%"></span></div>
         </div>
         <ul class="chlist">${w.channels.map(renderChannelRow).join("")}</ul>
-        <p class="legend"><kbd>J</kbd> <kbd>K</kbd> canal · <kbd>Espaço</kbd> marcar canal concluído · <kbd>[</kbd> <kbd>]</kbd> semana · <kbd>R</kbd> recarregar · <kbd>1</kbd> <kbd>2</kbd> abas</p>
+        <p class="legend"><kbd>J</kbd> <kbd>K</kbd> canal · <kbd>Espaço</kbd> marcar canal concluído · <kbd>[</kbd> <kbd>]</kbd> grupo · <kbd>R</kbd> recarregar · <kbd>1</kbd> <kbd>2</kbd> abas</p>
       </section>
       <section class="pane-detail" aria-label="Vídeos do canal">${renderDetail()}</section>
     </div>`;
@@ -434,7 +452,9 @@ function ago(t) {
 }
 
 function renderDetail() {
-  const ch = curCh(), k = FP.channelKey(ch), cached = vidCache[k], vids = cached?.vids || [];
+  const ch = curCh();
+  if (!ch) return `<p class="empty empty--lg">Nenhum canal marcado neste grupo ainda. Abra Ajustes → Canais pra marcar alguns.</p>`;
+  const k = FP.channelKey(ch), cached = vidCache[k], vids = cached?.vids || [];
   const loading = S.loadingKey === k;
   let body;
   if (loading && !cached) body = `<p class="empty" role="status">Buscando vídeos de ${esc(ch.name)}…</p>`;
@@ -511,8 +531,62 @@ function renderCourses() {
 // ============================================================
 const dlg = () => document.getElementById("settings");
 
-function openSettings() {
-  dlg().innerHTML = `
+// ============================================================
+// AJUSTES — Canais do rodízio (via OAuth do Google, ver oauth.js)
+// ============================================================
+const chState = { subs: null, loading: false, error: "" };
+const GROUP_NAMES = ["Grupo A", "Grupo B", "Grupo C", "Grupo D"];
+
+async function loadSubscriptions(connect) {
+  chState.loading = true; chState.error = ""; renderSettings();
+  try {
+    await (connect ? FPAuth.connect() : FPAuth.getToken());
+    chState.subs = await FPAuth.listSubscriptions();
+  } catch (e) {
+    chState.error = e.message || "Não deu pra conectar com o Google.";
+  }
+  chState.loading = false; renderSettings();
+}
+
+function toggleChannelSelected(channelId, key, name) {
+  const existingKey = key || channelId;
+  const cur = progress.channels[existingKey];
+  const on = !FP.isOn(cur);
+  const group = cur ? cur.group : FP.assignGroup(progress.channels);
+  progress.channels[existingKey] = cur
+    ? { ...cur, t: now(), on, group, name }
+    : { t: now(), on, group, name, type: "channel", channelId };
+  commit(false);
+  renderSettings();
+}
+
+function renderChannelsSection() {
+  if (chState.loading) return `<p class="hint">Carregando canais inscritos…</p>`;
+  if (chState.error) return `
+    <p class="notice notice--error">${esc(chState.error)}</p>
+    <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
+  if (!chState.subs) return `
+    <p class="hint">Conecte sua conta do Google pra listar os canais que você é inscrito e escolher quais entram no rodízio.</p>
+    <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
+  const rows = chState.subs.map((s) => {
+    const [key, cur] = FP.resolveChannelEntry(progress.channels, chIds, s.channelId);
+    const on = FP.isOn(cur);
+    return `
+      <li class="ch-pick ${on ? "is-on" : ""}">
+        ${checkBtn(`data-action="toggle-channel" data-id="${esc(s.channelId)}" data-key="${esc(key || "")}" data-name="${esc(s.name)}"`, on, `${on ? "Remover do" : "Adicionar ao"} rodízio: ${s.name}`)}
+        <span class="ch-pick__name">${esc(s.name)}</span>
+        <span class="ch-pick__group">${on ? esc(GROUP_NAMES[cur.group]) : ""}</span>
+      </li>`;
+  }).join("");
+  return `
+    <p class="hint">${chState.subs.length} canais inscritos. Marcados entram no rodízio — a distribuição entre os 4 grupos é automática.</p>
+    <ul class="ch-pick-list">${rows}</ul>
+    <button class="btn" type="button" data-action="oauth-disconnect">Desconectar do Google</button>
+    <p class="hint">Canal que não é inscrição do YouTube (ex.: busca por termo) só dá pra editar direto em <code>data.js</code>.</p>`;
+}
+
+function settingsBody() {
+  return `
     <form class="sheet__body" data-form="settings" autocomplete="off">
       <div class="sheet__head">
         <h2 id="settings-title">Ajustes</h2>
@@ -527,6 +601,10 @@ function openSettings() {
       <p class="hint">Token clássico só com o escopo <strong>gist</strong> — <a class="link" href="${TOKEN_URL}" target="_blank" rel="noopener">criar token</a>. Fica só neste aparelho.</p>
       <p class="status-line" id="sync-status" data-state="${sync.state}" role="status">${esc(syncStatusText())}</p>
       <p class="hint">${esc(diagnostics())}</p>
+      <section class="settings__section">
+        <h3 class="settings__title">Canais do rodízio</h3>
+        ${renderChannelsSection()}
+      </section>
       <p class="notice notice--error form-error" role="alert" hidden></p>
       <div class="sheet__actions">
         <button class="btn btn--primary" type="submit">Salvar ajustes</button>
@@ -534,7 +612,18 @@ function openSettings() {
         <button class="btn" type="button" data-action="close-settings">Fechar</button>
       </div>
     </form>`;
+}
+
+// Trocar innerHTML de um <dialog> já aberto não fecha ele — dá pra reusar pra re-render
+// depois de ações assíncronas (conectar, listar, marcar canal) sem duplicar o template.
+function renderSettings() {
+  dlg().innerHTML = settingsBody();
+}
+
+function openSettings() {
+  renderSettings();
   dlg().showModal();
+  if (FPAuth.isConnected() && !chState.subs) loadSubscriptions(false);
 }
 
 // ============================================================
@@ -665,7 +754,8 @@ document.addEventListener("click", (e) => {
   const { action, i, id, tab } = el.dataset;
   switch (action) {
     case "tab": setTab(tab); break;
-    case "week": setWeek(+i); break;
+    case "week-prev": setWeek(Math.max(0, S.week - 1)); break;
+    case "week-next": setWeek(Math.min(3, S.week + 1)); break;
     case "select": selectChannel(+i); break;
     case "back": backToList(); break;
     case "toggle-done": toggleDone(week().channels[+i]); break;
@@ -675,6 +765,9 @@ document.addEventListener("click", (e) => {
     case "more": loadMore(curCh()); break;
     case "next-platform": nextPlatform(); break;
     case "next-course": nextCourse(); break;
+    case "toggle-channel": toggleChannelSelected(el.dataset.id, el.dataset.key, el.dataset.name); break;
+    case "oauth-connect": loadSubscriptions(true); break;
+    case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; renderSettings(); break;
     case "settings": openSettings(); break;
     case "close-settings": dlg().close(); break;
     case "sync-now": saveSettingsFields(el.closest("form")); syncNow(); break;

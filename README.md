@@ -2,8 +2,8 @@
 
 Seus canais do YouTube e cursos online em rodízio semanal, num app que roda no celular (PWA no iPhone) e no computador.
 
-- **Vídeos:** os 4 grupos de canais rodam pela semana do mês (dia 1–7 = Semana 1, 8–14 = Semana 2, 15–21 = Semana 3, 22 em diante = Semana 4). O app abre sempre na semana de hoje.
-- **Progresso:** marque cada vídeo como "assistido" e cada canal como "concluído nesta semana". O progresso zera sozinho no mês seguinte.
+- **Vídeos:** os 4 grupos de canais rodam por semana real (segunda a domingo), em rotação contínua — nunca reseta por mês, um mês com 5 semanas só continua o ciclo. O app abre sempre no grupo de hoje.
+- **Progresso:** marque cada vídeo como "assistido" e cada canal como "concluído nesta semana". O progresso zera sozinho quando o grupo volta a aparecer (~4 semanas depois).
 - **Cursos:** rodízio de plataformas, com "onde parei" editável.
 - **Sincronização:** o progresso vai para um Gist secreto do seu GitHub e aparece igual no celular e no computador.
 
@@ -67,13 +67,41 @@ Para revogar: GitHub → Settings → Developer settings → Tokens (classic) �
 - O GitHub não tem escopo mais estreito para gists. Um token com escopo `gist` consegue ler e escrever **todos** os seus gists, não só o do FlowPlayer. Ele fica só no `localStorage` do aparelho.
 - Gist "secreto" é **não listado**, não privado: quem tiver o link consegue ler. O conteúdo é só progresso (IDs de vídeos e semanas concluídas), sem chave nem token.
 
+### 3. Conectar canais do YouTube (opcional, pra escolher os canais pela interface)
+
+Sem isso, os canais continuam sendo os 27 que já vêm no app (migrados automaticamente). Conectando, você passa a poder marcar/desmarcar direto dos Ajustes, a partir dos canais que você é inscrito no YouTube.
+
+**Antes da primeira vez, crie o Client ID no Google Cloud Console** (uma vez só; `oauth.js` já tem um espaço reservado, `OAUTH_CLIENT_ID`, pra colar o valor):
+
+1. Criar o projeto e a tela de consentimento:
+   1. Abra <https://console.cloud.google.com/> e crie um projeto (ou reaproveite o mesmo da API Key do YouTube).
+   2. **APIs e serviços → Tela de permissão OAuth**: tipo **Externo**, preencha nome do app ("FlowPlayer") e e-mail de suporte. Em **Publicação**, deixe em **Testing**.
+   3. Em **Test users**, adicione o seu próprio e-mail do Google (o que você usa pro YouTube). Só usuários dessa lista conseguem logar enquanto o app estiver em Testing.
+   4. Em **Escopos**, adicione `https://www.googleapis.com/auth/youtube.readonly`.
+2. Criar o Client ID:
+   1. **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**.
+   2. Tipo de aplicativo: **Aplicativo da Web**.
+   3. **Origens JavaScript autorizadas**: adicione `https://filipebiten.github.io` (produção) e, se for testar local, `http://localhost:8765` e `http://localhost:8767` (os servidores de teste do projeto — ver `tests/e2e/setup.sh`).
+   4. Não precisa de "URI de redirecionamento" (o modelo token não usa redirect).
+   5. Copie o Client ID gerado (formato `123456-abc.apps.googleusercontent.com`). **Não é segredo** — pode ficar no código do repositório público. Cole em `OAUTH_CLIENT_ID`, em `oauth.js`.
+
+Com o Client ID colado:
+
+1. Em **Ajustes → Canais do rodízio**, toque em **Conectar com Google**.
+2. Escolha sua conta (é a mesma do YouTube). Na primeira vez, o Google avisa "app não verificado" — é esperado (o FlowPlayer é um app pessoal, não passou pela revisão do Google, mas é seguro: só ele mesmo tem acesso, via a lista de "test users" configurada no Google Cloud). Toque em **Avançado → Acessar FlowPlayer (não seguro)**.
+3. Autorize o acesso de leitura às suas inscrições do YouTube.
+4. A lista de canais inscritos aparece. Marque os que você quer no rodízio — a distribuição entre os 4 grupos é automática.
+5. Da próxima vez, o login acontece sozinho (sem popup), enquanto você continuar logado no Google nesse navegador.
+
+**Se aparecer "Acesso bloqueado" em vez da tela de login:** seu e-mail não está na lista de "Test users" do projeto no Google Cloud Console (**Tela de permissão OAuth → Público de teste**). Adicione lá.
+
 ## Atalhos de teclado (computador)
 
 | Tecla | Ação |
 |---|---|
 | `J` / `K` | canal seguinte / anterior |
 | `Espaço` | marcar ou desmarcar o canal como concluído |
-| `[` / `]` | semana anterior / próxima |
+| `[` / `]` | grupo anterior / próximo |
 | `R` | recarregar os vídeos do canal |
 | `1` / `2` | aba Vídeos / Cursos |
 
