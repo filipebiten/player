@@ -2,6 +2,12 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.3.0 — 2026-09-22
+
+### Adicionado
+- **Gestão de canais via OAuth do Google:** em Ajustes → Canais do rodízio, conecte sua conta do Google e marque quais canais inscritos entram no rodízio. Distribuição automática entre os 4 grupos (sempre o grupo com menos canais). Login silencioso nas próximas vezes (sem popup), enquanto a conta continuar logada no navegador.
+- `data.js` (`WEEKS`) deixa de ser lido em runtime — vira só a semente da migração automática na primeira carga de cada aparelho (os 27 canais atuais nascem pré-marcados, mesmos grupos de hoje).
+
 ## 2.2.0 — 2026-09-22
 
 ### Alterado

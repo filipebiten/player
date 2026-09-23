@@ -67,6 +67,18 @@ Para revogar: GitHub → Settings → Developer settings → Tokens (classic) �
 - O GitHub não tem escopo mais estreito para gists. Um token com escopo `gist` consegue ler e escrever **todos** os seus gists, não só o do FlowPlayer. Ele fica só no `localStorage` do aparelho.
 - Gist "secreto" é **não listado**, não privado: quem tiver o link consegue ler. O conteúdo é só progresso (IDs de vídeos e semanas concluídas), sem chave nem token.
 
+### 3. Conectar canais do YouTube (opcional, pra escolher os canais pela interface)
+
+Sem isso, os canais continuam sendo os 27 que já vêm no app (migrados automaticamente). Conectando, você passa a poder marcar/desmarcar direto dos Ajustes, a partir dos canais que você é inscrito no YouTube.
+
+1. Em **Ajustes → Canais do rodízio**, toque em **Conectar com Google**.
+2. Escolha sua conta (é a mesma do YouTube). Na primeira vez, o Google avisa "app não verificado" — é esperado (o FlowPlayer é um app pessoal, não passou pela revisão do Google, mas é seguro: só ele mesmo tem acesso, via a lista de "test users" configurada no Google Cloud). Toque em **Avançado → Acessar FlowPlayer (não seguro)**.
+3. Autorize o acesso de leitura às suas inscrições do YouTube.
+4. A lista de canais inscritos aparece. Marque os que você quer no rodízio — a distribuição entre os 4 grupos é automática.
+5. Da próxima vez, o login acontece sozinho (sem popup), enquanto você continuar logado no Google nesse navegador.
+
+**Se aparecer "Acesso bloqueado" em vez da tela de login:** seu e-mail não está na lista de "Test users" do projeto no Google Cloud Console (**Tela de permissão OAuth → Público de teste**). Adicione lá.
+
 ## Atalhos de teclado (computador)
 
 | Tecla | Ação |

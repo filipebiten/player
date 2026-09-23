@@ -38,6 +38,8 @@ Uso: a cada semana real há um grupo de canais. Filipe abre o canal, escolhe um 
 ### Semana automática
 `FP.weekIndexForDate(date)` = `((FP.weeksSinceEpoch(date) % 4) + 4) % 4`. `weeksSinceEpoch` conta semanas-calendário inteiras (segunda a domingo) desde uma âncora fixa (segunda-feira 1970-01-05) — cresce 1 por semana real, para sempre, sem reset por mês nem descontinuidade em virada de ano (mesmo em anos com 53 semanas ISO). O app **sempre abre no grupo da semana de hoje**; navegar manualmente não é salvo. Navegação entre grupos: setas `.weeknav` na lista de canais e teclas `[` `]` (clamped em 0-3, não dá volta). Se o app voltar ao primeiro plano numa semana diferente, reposiciona (`visibilitychange`). Não há mais rótulo "Semana N" na tela principal — o texto é "Canais desta semana" (grupo de hoje) ou "Outro grupo de canais" (navegou manualmente). A fórmula antiga por bloco de dia-do-mês (`min(3, floor((diaDoMês-1)/7))`, v2.0-2.1) foi removida: não coincidia com semanas-calendário reais quando o mês não começava numa segunda. Não volte a ela.
 
+Os "4 grupos" que giram por semana agora vêm de `progress.channels` (não mais de `WEEKS` direto) — ver "Onde editar canais". Nos Ajustes eles aparecem como "Grupo A/B/C/D"; na tela principal, nunca com número.
+
 ### Modelo de dados do progresso
 
 **`localStorage` (por aparelho):**
@@ -116,13 +118,15 @@ Uso: a cada semana real há um grupo de canais. Filipe abre o canal, escolhe um 
 - Links externos: `target="_blank" rel="noopener noreferrer"`.
 - O token com escopo `gist` lê e escreve todos os gists do Filipe (não existe escopo menor). Fica só em `fp-config`. Nunca logue nem exiba o token.
 
-## Onde editar canais e cursos
+## Onde editar canais
 
-Em **`data.js`**.
+**Não edite mais `data.js` pra canais do dia a dia.** Ele só serve como semente da migração automática (`FP.migrateWeeksChannels`, chamada uma única vez, na primeira carga de cada aparelho que ainda não tem `progress.channels`). Depois disso, `WEEKS` nunca mais é lido em runtime.
 
-> **NÃO ALTERE `name`, `handle`, `channelId` nem `query` dos itens existentes.** O progresso salvo é indexado por eles (ver `channelKey`). Os valores atuais foram copiados byte a byte do `index.html` original e conferidos com `diff`. Para **adicionar** um canal, acrescente um item novo no fim da semana; para **remover**, apague o item (o progresso dele fica órfão e é podado sozinho).
+Canais são adicionados/removidos pelo app: **Ajustes → Canais do rodízio → Conectar com Google**, que lista as inscrições do YouTube (via OAuth, `oauth.js`) e deixa marcar quais entram. A distribuição entre os 4 grupos é automática (`FP.assignGroup`: sempre o grupo com menos canais `on`).
 
-Formato de canal: `{ name, handle, type: "channel" }`, ou `{ name, channelId, type: "channel" }`, ou `{ name, query, type: "search" }` (busca por vídeos recentes; custa 100 de cota por carga). Formato de plataforma: `{ name, url, color, courses: [{ name, lastLesson }] }`.
+O estado fica em `progress.channels` (dentro do mesmo `fp-progress`/Gist de sempre): mapa `channelKey -> {t, on, group, name, type, channelId?, handle?, query?}`, mesmo padrão de merge por timestamp de `watched`/`done`/`courses`. **channelKey dos 27 canais migrados de `data.js` continua sendo `channelId‖handle‖query`, exatamente como antes** — preserva `watched`/`done` de quem já usava o app antes desta mudança. Canais adicionados via OAuth depois disso sempre usam `channelId` puro (é tudo que a API de inscrições devolve).
+
+Cursos (`PLATFORMS`) continuam em `data.js`, sem mudança.
 
 ## Como publicar
 
