@@ -548,11 +548,14 @@ async function loadSubscriptions(connect) {
   chState.loading = false; renderSettings();
 }
 
-function toggleChannelSelected(channelId, name) {
-  const cur = progress.channels[channelId];
+function toggleChannelSelected(channelId, key, name) {
+  const existingKey = key || channelId;
+  const cur = progress.channels[existingKey];
   const on = !FP.isOn(cur);
-  const group = on ? (cur ? cur.group : FP.assignGroup(progress.channels)) : (cur ? cur.group : 0);
-  progress.channels[channelId] = { t: now(), on, group, name, type: "channel", channelId };
+  const group = cur ? cur.group : FP.assignGroup(progress.channels);
+  progress.channels[existingKey] = cur
+    ? { ...cur, t: now(), on, group, name }
+    : { t: now(), on, group, name, type: "channel", channelId };
   commit(false);
   renderSettings();
 }
@@ -566,10 +569,11 @@ function renderChannelsSection() {
     <p class="hint">Conecte sua conta do Google pra listar os canais que você é inscrito e escolher quais entram no rodízio.</p>
     <button class="btn" type="button" data-action="oauth-connect">Conectar com Google</button>`;
   const rows = chState.subs.map((s) => {
-    const cur = progress.channels[s.channelId], on = FP.isOn(cur);
+    const [key, cur] = FP.resolveChannelEntry(progress.channels, chIds, s.channelId);
+    const on = FP.isOn(cur);
     return `
       <li class="ch-pick ${on ? "is-on" : ""}">
-        ${checkBtn(`data-action="toggle-channel" data-id="${esc(s.channelId)}" data-name="${esc(s.name)}"`, on, `${on ? "Remover do" : "Adicionar ao"} rodízio: ${s.name}`)}
+        ${checkBtn(`data-action="toggle-channel" data-id="${esc(s.channelId)}" data-key="${esc(key || "")}" data-name="${esc(s.name)}"`, on, `${on ? "Remover do" : "Adicionar ao"} rodízio: ${s.name}`)}
         <span class="ch-pick__name">${esc(s.name)}</span>
         <span class="ch-pick__group">${on ? esc(GROUP_NAMES[cur.group]) : ""}</span>
       </li>`;
@@ -577,7 +581,8 @@ function renderChannelsSection() {
   return `
     <p class="hint">${chState.subs.length} canais inscritos. Marcados entram no rodízio — a distribuição entre os 4 grupos é automática.</p>
     <ul class="ch-pick-list">${rows}</ul>
-    <button class="btn" type="button" data-action="oauth-disconnect">Desconectar do Google</button>`;
+    <button class="btn" type="button" data-action="oauth-disconnect">Desconectar do Google</button>
+    <p class="hint">Canal que não é inscrição do YouTube (ex.: busca por termo) só dá pra editar direto em <code>data.js</code>.</p>`;
 }
 
 function settingsBody() {
@@ -760,7 +765,7 @@ document.addEventListener("click", (e) => {
     case "more": loadMore(curCh()); break;
     case "next-platform": nextPlatform(); break;
     case "next-course": nextCourse(); break;
-    case "toggle-channel": toggleChannelSelected(el.dataset.id, el.dataset.name); break;
+    case "toggle-channel": toggleChannelSelected(el.dataset.id, el.dataset.key, el.dataset.name); break;
     case "oauth-connect": loadSubscriptions(true); break;
     case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; renderSettings(); break;
     case "settings": openSettings(); break;

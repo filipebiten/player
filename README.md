@@ -71,6 +71,22 @@ Para revogar: GitHub → Settings → Developer settings → Tokens (classic) �
 
 Sem isso, os canais continuam sendo os 27 que já vêm no app (migrados automaticamente). Conectando, você passa a poder marcar/desmarcar direto dos Ajustes, a partir dos canais que você é inscrito no YouTube.
 
+**Antes da primeira vez, crie o Client ID no Google Cloud Console** (uma vez só; `oauth.js` já tem um espaço reservado, `OAUTH_CLIENT_ID`, pra colar o valor):
+
+1. Criar o projeto e a tela de consentimento:
+   1. Abra <https://console.cloud.google.com/> e crie um projeto (ou reaproveite o mesmo da API Key do YouTube).
+   2. **APIs e serviços → Tela de permissão OAuth**: tipo **Externo**, preencha nome do app ("FlowPlayer") e e-mail de suporte. Em **Publicação**, deixe em **Testing**.
+   3. Em **Test users**, adicione o seu próprio e-mail do Google (o que você usa pro YouTube). Só usuários dessa lista conseguem logar enquanto o app estiver em Testing.
+   4. Em **Escopos**, adicione `https://www.googleapis.com/auth/youtube.readonly`.
+2. Criar o Client ID:
+   1. **APIs e serviços → Credenciais → Criar credenciais → ID do cliente OAuth**.
+   2. Tipo de aplicativo: **Aplicativo da Web**.
+   3. **Origens JavaScript autorizadas**: adicione `https://filipebiten.github.io` (produção) e, se for testar local, `http://localhost:8765` e `http://localhost:8767` (os servidores de teste do projeto — ver `tests/e2e/setup.sh`).
+   4. Não precisa de "URI de redirecionamento" (o modelo token não usa redirect).
+   5. Copie o Client ID gerado (formato `123456-abc.apps.googleusercontent.com`). **Não é segredo** — pode ficar no código do repositório público. Cole em `OAUTH_CLIENT_ID`, em `oauth.js`.
+
+Com o Client ID colado:
+
 1. Em **Ajustes → Canais do rodízio**, toque em **Conectar com Google**.
 2. Escolha sua conta (é a mesma do YouTube). Na primeira vez, o Google avisa "app não verificado" — é esperado (o FlowPlayer é um app pessoal, não passou pela revisão do Google, mas é seguro: só ele mesmo tem acesso, via a lista de "test users" configurada no Google Cloud). Toque em **Avançado → Acessar FlowPlayer (não seguro)**.
 3. Autorize o acesso de leitura às suas inscrições do YouTube.

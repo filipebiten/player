@@ -98,6 +98,19 @@
     return channels;
   }
 
+  // Acha a entrada de progress.channels que corresponde a uma inscrição do OAuth (só tem
+  // channelId). Prioridade: 1) chave = channelId direto (canal adicionado via OAuth antes,
+  // ou migrado com channelId). 2) canal migrado por handle cujo fp-chid[handle] resolveu pra
+  // esse mesmo channelId (bridge: só existe depois que o canal foi aberto pelo menos uma vez).
+  // chIds é passado como objeto puro (sem ler localStorage aqui). Sem match: [null, null].
+  function resolveChannelEntry(channels, chIds, subChannelId) {
+    if (channels[subChannelId]) return [subChannelId, channels[subChannelId]];
+    for (const [key, entry] of Object.entries(channels || {})) {
+      if (entry && entry.handle && chIds[entry.handle] === subChannelId) return [key, entry];
+    }
+    return [null, null];
+  }
+
   function pruneProgress(p, now = Date.now()) {
     p = norm(p);
     const watched = {};
@@ -127,7 +140,7 @@
   const api = {
     CACHE_TTL, weeksSinceEpoch, weekIndexForDate, doneKey, channelKey, escapeHtml,
     emptyProgress, setEntry, isOn, mergeProgress, pruneProgress, relDate, isFresh,
-    assignGroup, migrateWeeksChannels,
+    assignGroup, migrateWeeksChannels, resolveChannelEntry,
   };
   root.FP = api;
   if (typeof module !== "undefined") module.exports = api;

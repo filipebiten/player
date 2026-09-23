@@ -192,6 +192,30 @@ t("migrateWeeksChannels deve converter WEEKS para channels map", () => {
     `esperava entrada "UCxxx" no grupo 1, veio ${JSON.stringify(out.UCxxx)}`);
 });
 
+// resolveChannelEntry: casa inscrição OAuth (só tem channelId) com canal migrado por
+// handle, via a ponte fp-chid (handle -> channelId, só existe se o canal já foi aberto).
+t("resolveChannelEntry deve casar por channelId direto", () => {
+  const channels = { UCxxx: { t: 1, on: true, group: 0, name: "B", channelId: "UCxxx" } };
+  const [key, entry] = FP.resolveChannelEntry(channels, {}, "UCxxx");
+  assert.equal(key, "UCxxx");
+  assert.equal(entry.name, "B");
+});
+
+t("resolveChannelEntry deve casar canal migrado por handle via fp-chid", () => {
+  const channels = { aa: { t: 1, on: true, group: 0, name: "A", handle: "aa" } };
+  const chIds = { aa: "UCresolved" };
+  const [key, entry] = FP.resolveChannelEntry(channels, chIds, "UCresolved");
+  assert.equal(key, "aa");
+  assert.equal(entry.handle, "aa");
+});
+
+t("resolveChannelEntry deve retornar [null,null] sem nenhum match", () => {
+  const channels = { aa: { t: 1, on: true, group: 0, name: "A", handle: "aa" } };
+  const [key, entry] = FP.resolveChannelEntry(channels, {}, "UCnovo");
+  assert.equal(key, null);
+  assert.equal(entry, null);
+});
+
 // mergeProgress: channels merge por timestamp igual watched (o mais novo vence).
 t("mergeProgress deve fazer merge de channels por timestamp", () => {
   const a = FP.emptyProgress(); a.channels.x = { t: 1, on: true, group: 0, name: "X" };

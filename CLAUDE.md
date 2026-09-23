@@ -12,16 +12,17 @@ Uso: a cada semana real há um grupo de canais. Filipe abre o canal, escolhe um 
 
 - **Estático, sem build, sem framework, sem dependência paga.** Tem que rodar no GitHub Pages como está. Nada de npm no app (o `node` só roda o teste de `lib.js`).
 - **Identidade visual:** fundo `#0B0E14`, destaque âmbar `#F59E0B`, fonte Outfit, ícones `icon-192.png` e `icon-512.png`. Tokens em `:root` de `styles.css`.
-- **Nenhuma chave ou token no repo** (ele é público). API Key e token do Gist ficam só no `localStorage` de cada aparelho.
+- **Nenhuma chave ou token no repo** (ele é público). API Key e token do Gist ficam só no `localStorage` de cada aparelho. Exceção: o **OAuth Client ID** do Google, hardcoded em `oauth.js` — não é segredo, é seguro publicar (é assim que todo exemplo oficial do Google faz); o que é secreto é o token de acesso, que nunca é persistido.
 - Sem animações decorativas (o `prefers-reduced-motion` é respeitado).
 
 ## Estrutura de arquivos
 
 | Arquivo | Papel |
 |---|---|
-| `index.html` | Casca: meta tags do PWA, **CSP**, `<div id="app">`, `<dialog id="settings">`, carrega os 3 scripts nesta ordem: `data.js` → `lib.js` → `app.js`. |
-| `data.js` | **Listas `WEEKS` (canais) e `PLATFORMS` (cursos).** É onde se edita conteúdo. |
+| `index.html` | Casca: meta tags do PWA, **CSP**, `<div id="app">`, `<dialog id="settings">`, carrega os scripts nesta ordem: `data.js` → `lib.js` → script do GIS (`accounts.google.com/gsi/client`) → `oauth.js` → `app.js`. |
+| `data.js` | **Listas `WEEKS` (canais) e `PLATFORMS` (cursos).** Hoje só é semente da migração automática de canais (ver "Onde editar canais") — `PLATFORMS` (cursos) continua editado aqui. |
 | `lib.js` | Lógica **pura** (sem DOM nem rede): semana pela data real, chaves de progresso, merge, poda, datas, TTL do cache. Vai para `window.FP` no navegador e `module.exports` no Node. **Tem testes.** |
+| `oauth.js` | Wrapper do Google Identity Services (modelo "token", client-side puro, sem backend) — só pra listar as inscrições do YouTube via OAuth. Expõe `window.FPAuth`. O Client ID não é segredo (seguro publicar num repo público); o token de acesso fica só em memória. |
 | `app.js` | Estado, chamadas à API do YouTube, cache, progresso, sync do Gist, render (`innerHTML` + delegação de eventos por `data-action`), atalhos. |
 | `styles.css` | Tokens, componentes e layout. Mobile primeiro; duas colunas a partir de `min-width: 900px`. |
 | `sw.js` | Service worker: o app abre offline. Network-first (ver "Service worker"). |
@@ -61,7 +62,8 @@ Os "4 grupos" que giram por semana agora vêm de `progress.channels` (não mais 
   "watched": { "<videoId>": { "t": 1789995575282, "on": true } },
   "done":    { "2026-09-3": { "<channelKey>": { "t": 1789995600000, "on": true } } },
   "courses": { "Hotmart|Investidor 33 Dias": { "t": 1789995606223, "lastLesson": "Módulo 7, aula 3" } },
-  "rot":     { "t": 1789995606448, "p": 1, "c": 0 }
+  "rot":     { "t": 1789995606448, "p": 1, "c": 0 },
+  "channels": { "thejesuscopy": { "t": 1789995600000, "on": true, "group": 0, "name": "JesusCopy", "type": "channel", "handle": "thejesuscopy" } }
 }
 ```
 
@@ -114,7 +116,7 @@ Os "4 grupos" que giram por semana agora vêm de `progress.channels` (não mais 
 
 ### Segurança
 - **Todo texto vindo de API/dados passa por `FP.escapeHtml` (`esc()`) antes de entrar em `innerHTML`.** Mantenha isso ao adicionar campos.
-- **CSP** em `index.html` (meta): `connect-src` só `googleapis.com`, `api.github.com`, `gist.githubusercontent.com`; scripts só `'self'`. Se adicionar um domínio (fonte, API, imagem), **atualize a CSP** ou o recurso será bloqueado.
+- **CSP** em `index.html` (meta): `connect-src` inclui `googleapis.com`, `api.github.com`, `gist.githubusercontent.com` e `accounts.google.com/gsi/` (OAuth); `script-src` é `'self'` mais `accounts.google.com/gsi/client` (script do GIS); há também `frame-src https://accounts.google.com/gsi/` pro popup de login. Se adicionar um domínio (fonte, API, imagem), **atualize a CSP** ou o recurso será bloqueado.
 - Links externos: `target="_blank" rel="noopener noreferrer"`.
 - O token com escopo `gist` lê e escreve todos os gists do Filipe (não existe escopo menor). Fica só em `fp-config`. Nunca logue nem exiba o token.
 

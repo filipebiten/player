@@ -24,7 +24,8 @@ function ensureClient() {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: OAUTH_CLIENT_ID,
       scope: OAUTH_SCOPE,
-      callback: () => {}, // sobrescrito a cada chamada em requestToken()
+      callback: () => {}, // sobrescritos a cada chamada em requestToken()
+      error_callback: () => {},
     });
   }
   return tokenClient;
@@ -42,13 +43,25 @@ function requestToken(silent) {
       tokenExpiresAt = Date.now() + (resp.expires_in || 3600) * 1000 - 30000; // 30s de folga
       resolve(accessToken);
     };
+    // Fechar o popup (ou ele não abrir) chama error_callback, não callback — sem isso a
+    // promise só resolveria pelo timeout de 20s lá embaixo, com "Carregando…" preso na tela.
+    client.error_callback = (err) => {
+      const type = err && err.type;
+      const msg = type === "popup_closed" ? "Login com Google cancelado (popup fechado)."
+        : type === "popup_failed_to_open" ? "Não deu pra abrir o popup de login do Google (bloqueador de pop-up?)."
+        : "Erro ao conectar com o Google.";
+      reject(new Error(msg));
+    };
     client.requestAccessToken(silent ? { prompt: "" } : {});
   });
-  // client.callback é o único jeito de resolver/rejeitar; se o Google nunca chamar
-  // (ex.: client_id inválido, falha silenciosa), a promise ficaria pendurada pra sempre.
+  // client.callback/error_callback são o único jeito de resolver/rejeitar; se o Google nunca
+  // chamar nenhum dos dois (ex.: client_id inválido, falha silenciosa), a promise ficaria
+  // pendurada pra sempre — daí o timeout. O .catch(() => {}) é só pra não gerar unhandled
+  // rejection quando `p` rejeita e ninguém mais lê a promise que o .finally() devolve; quem
+  // chama requestToken() continua vendo a rejeição normal via Promise.race abaixo.
   const timeout = new Promise((_, reject) => {
     const id = setTimeout(() => reject(new Error("Conexão com o Google demorou demais. Tente de novo.")), 20000);
-    p.finally(() => clearTimeout(id));
+    p.finally(() => clearTimeout(id)).catch(() => {});
   });
   return Promise.race([p, timeout]);
 }
