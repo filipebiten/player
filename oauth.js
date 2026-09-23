@@ -5,9 +5,9 @@
 // público (é assim que todo exemplo oficial do Google faz). O que é secreto é o token de
 // acesso, que fica só em memória (nunca em localStorage nem no Gist) e dura ~1h.
 //
-// Filipe: troque OAUTH_CLIENT_ID pelo Client ID criado no Google Cloud Console
-// (ver README.md, seção "Conectar canais do YouTube", e CLAUDE.md, Task 2 deste plano).
-const OAUTH_CLIENT_ID = "COLE_SEU_CLIENT_ID_AQUI.apps.googleusercontent.com";
+// Client ID criado no Google Cloud Console (ver README.md, seção "Conectar
+// canais do YouTube", pro passo a passo de como gerar um novo).
+const OAUTH_CLIENT_ID = "679516212174-iop666mjrbikmohett8em48d07vk5jnr.apps.googleusercontent.com";
 const OAUTH_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
 
 let tokenClient = null;
