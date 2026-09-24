@@ -2,6 +2,14 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.3.2 — 2026-09-24
+
+### Corrigido
+- **Relogin silencioso do Google ao reabrir Ajustes:** o token do OAuth só vive em memória (nunca `localStorage`), então recarregar a página sempre pedia clicar "Conectar com Google" de novo, mesmo com o consentimento do Google ainda válido. Agora uma flag local (sem token, sem segredo) registra que o usuário já conectou antes e o Ajustes tenta relogar sem popup automaticamente ao abrir; só mostra o botão "Conectar" se essa tentativa falhar de verdade.
+
+### Adicionado
+- Diagnóstico nos Ajustes agora mostra também quantos canais estão marcados no rodízio (além de canais concluídos e vídeos assistidos) — ajuda a comparar aparelhos.
+
 ## 2.3.1 — 2026-09-23
 
 ### Adicionado
@@ -10,7 +18,7 @@ Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 ## 2.3.0 — 2026-09-22
 
 ### Adicionado
-- **Gestão de canais via OAuth do Google:** em Ajustes → Canais do rodízio, conecte sua conta do Google e marque quais canais inscritos entram no rodízio. Distribuição automática entre os 4 grupos (sempre o grupo com menos canais). Login silencioso nas próximas vezes (sem popup), enquanto a conta continuar logada no navegador.
+- **Gestão de canais via OAuth do Google:** em Ajustes → Canais do rodízio, conecte sua conta do Google e marque quais canais inscritos entram no rodízio. Distribuição automática entre os 4 grupos (sempre o grupo com menos canais). Login silencioso nas próximas vezes (sem popup), enquanto a conta continuar logada no navegador. A lista de canais passou a ordenar por nome (`localeCompare`) em vez da ordem antiga de `data.js`.
 - `data.js` (`WEEKS`) deixa de ser lido em runtime — vira só a semente da migração automática na primeira carga de cada aparelho (os 27 canais atuais nascem pré-marcados, mesmos grupos de hoje).
 
 ## 2.2.0 — 2026-09-22

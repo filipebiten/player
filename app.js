@@ -762,7 +762,8 @@ function setSync(state, msg = "") {
 function diagnostics() {
   const w = Object.values(progress.watched).filter(FP.isOn).length;
   const d = Object.values(progress.done).reduce((n, m) => n + Object.values(m).filter(FP.isOn).length, 0);
-  return `Gist: ${config.gistId ? config.gistId.slice(0, 7) + "…" : "ainda não criado"} · neste aparelho: ${d} canais concluídos, ${w} vídeos assistidos`;
+  const c = Object.values(progress.channels).filter(FP.isOn).length;
+  return `Gist: ${config.gistId ? config.gistId.slice(0, 7) + "…" : "ainda não criado"} · neste aparelho: ${d} canais concluídos, ${w} vídeos assistidos, ${c} canais no rodízio`;
 }
 
 function syncStatusText() {
