@@ -542,6 +542,7 @@ async function loadSubscriptions(connect) {
   try {
     await (connect ? FPAuth.connect() : FPAuth.getToken());
     chState.subs = await FPAuth.listSubscriptions();
+    if (!config.oauthConnected) { config.oauthConnected = true; store.set("fp-config", config); }
   } catch (e) {
     chState.error = e.message || "Não deu pra conectar com o Google.";
   }
@@ -654,7 +655,10 @@ function renderSettings() {
 function openSettings() {
   renderSettings();
   dlg().showModal();
-  if (FPAuth.isConnected() && !chState.subs) loadSubscriptions(false);
+  // Se já conectou antes (flag em fp-config, não expira com reload como o token em memória),
+  // tenta relogar em silêncio — sem isso, todo reload de página forçava clicar "Conectar" de
+  // novo mesmo com o consentimento do Google ainda válido.
+  if (!chState.subs && (FPAuth.isConnected() || config.oauthConnected)) loadSubscriptions(false);
 }
 
 // ============================================================
@@ -798,7 +802,7 @@ document.addEventListener("click", (e) => {
     case "next-course": nextCourse(); break;
     case "toggle-channel": toggleChannelSelected(el.dataset.id, el.dataset.key, el.dataset.name); break;
     case "oauth-connect": loadSubscriptions(true); break;
-    case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; renderSettings(); break;
+    case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; config.oauthConnected = false; store.set("fp-config", config); renderSettings(); break;
     case "add-search": addSearchChannel(); break;
     case "settings": openSettings(); break;
     case "close-settings": dlg().close(); break;
