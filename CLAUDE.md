@@ -175,7 +175,7 @@ Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
 
 ## Roadmap e estado atual (retomar daqui)
 
-Atualizado em 2026-09-22, logo depois de mergear o plano **canais-oauth** em `main` (branch `worktree-semana-real-e-canais` mergeada e removida).
+Atualizado em 2026-09-24.
 
 ### Já feito
 - **v2.0.0 / v2.1.x (21/09):** reformulação completa + "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação de token, diagnóstico nos Ajustes. Publicado em `main`, no ar.
@@ -185,15 +185,12 @@ Atualizado em 2026-09-22, logo depois de mergear o plano **canais-oauth** em `ma
 - **Canais via OAuth do Google (22/09, `26666aa`..`0576626`):** nos Ajustes → "Canais do rodízio", conecta a conta do Google, lista inscrições do YouTube, marca quais entram no rodízio — a distribuição entre os 4 grupos é automática. `data.js`/`WEEKS` vira só semente de migração (não é mais editado pra canais do dia a dia). Estado em `progress.channels`, sincroniza pelo Gist como sempre. Revisão final (Opus) achou 1 Critical (canais migrados por handle não casavam com assinaturas OAuth por channelId — duplicava, não desmarcava) + 4 Important (docs desatualizadas, passo do Client ID só no plano, unhandled rejection no OAuth, popup fechado travava 20s) — todos corrigidos e reverificados em `0576626`, sem regressão. 25 testes de lógica pura `ok`; e2e completo (semana real, a11y/axe 0 violações, alvos de toque, sync, canais/OAuth mockado) passando.
 - **Client ID real do OAuth colado e testado em aparelho real (22/09, `21f4405`):** Filipe conectou a conta do Google de verdade — 111 canais inscritos listados, marcar/desmarcar funcionou (grupo automático), sync com Gist real ok.
 - **Canal por busca direto nos Ajustes (23/09, `d9a2770`):** em vez de converter "Andrea Vargas" pra canal real (ideia original), o Filipe preferiu poder adicionar canais por busca (sem inscrição no YouTube) direto pela UI — campo "Nome ou link de busca do YouTube" em Ajustes → Canais do rodízio, aceita link `youtube.com/results?search_query=...` ou termo puro (`FP.parseSearchQuery` em `lib.js`, testado). Usado ao vivo pra adicionar 9 pregadores/canais sem inscrição (Pedro Dulci, D. A. Carson, Dane Ortlund, Michael Reeves, Bryan Chapell, John Piper, Tim Keller, sermões de Billy Graham, Rev. Emilio Garofalo) — "andrea vargas" já existia e só foi reativada, sem duplicar (dedupe por `channelKey`). **Nota:** "Pedro Dulci" ficou com 2 entradas de propósito (canal real inscrito + a busca nova) — o Filipe decidiu deixar assim, não é bug.
+- **Relogin silencioso ao reabrir Ajustes (24/09, `77484cd`):** o token do OAuth só vivia em memória, então todo reload forçava clicar "Conectar" de novo mesmo com consentimento do Google ainda válido — pendência da revisão do plano canais-oauth. Corrigido com flag device-local (`fp-config.oauthConnected`, sem token/segredo) que faz `openSettings()` tentar `prompt:""` automaticamente; só mostra o botão "Conectar" se a tentativa silenciosa falhar de verdade. `diagnostics()` também ganhou contagem de canais no rodízio (`5b668f9`). `CHANGELOG.md` atualizado com nota retroativa da ordem alfabética da lista (decisão do plano canais-oauth, nunca documentada).
 
 ### Pendências, em ordem
-1. Achados menores da revisão final do plano canais-oauth, deferidos (não bloqueiam, sem prazo):
-   - README "Conectar canais" (passo 5) supervaloriza o relogin silencioso — o token é só em memória, então recarregar a página sempre exige clicar "Conectar" de novo (o popup pode fechar sozinho se a conta Google já estiver logada no navegador, mas ainda pede o clique).
+1. Achados menores da revisão final do plano canais-oauth, ainda deferidos (não bloqueiam, sem prazo):
    - A tela principal não re-renderiza sozinha depois de marcar/desmarcar um canal nos Ajustes (nem depois de um sync que encolhe um grupo) — pode mostrar "Nenhum canal marcado" até a próxima ação do usuário. Fix: re-render + clamp de `S.sel` ao fechar Ajustes e depois de sync.
-   - A ordem dos canais na lista mudou de "ordem de `data.js`" para alfabética (`localeCompare`) — decisão do plano, mas não documentada no `CHANGELOG.md`.
    - `tests/lib.test.mjs` não cobre: `pruneProgress` mantendo `channels`, comutatividade do merge com `channels`, uma entrada de `migrateWeeksChannels` com `channelId` e `handle` juntos.
-   - `diagnostics()` nos Ajustes não mostra quantos canais estão no rodízio (ajudaria a comparar aparelhos, como já faz com marcações).
-   - Cosmético: comentário no topo de `oauth.js` ainda aponta pra "CLAUDE.md, Task 2 deste plano" — Task 2 é conceito do arquivo do plano, não existe em CLAUDE.md; o passo real já está no README §3.
 
 ### Ideias em aberto (só se o Filipe pedir)
 - **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage`. Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
