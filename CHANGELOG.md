@@ -2,6 +2,14 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.3.3 — 2026-09-25
+
+### Corrigido
+- **Tela principal não atualizava sozinha após marcar/desmarcar canal nos Ajustes:** fechar o Ajustes só fechava o `<dialog>`, sem re-renderizar a lista de canais — podia mostrar "Nenhum canal marcado" até a próxima ação. `close-settings` e o fim do sync agora chamam `render()` com `clampSel()` (corrige também `S.sel` apontando pra fora quando o grupo atual encolhe).
+
+### Testes
+- `lib.test.mjs`: cobertura pra `pruneProgress` mantendo `channels` intacto, `mergeProgress` comutativo com `channels`, e `migrateWeeksChannels` indexando por `channelId` quando o canal tem `channelId` e `handle` juntos.
+
 ## 2.3.2 — 2026-09-24
 
 ### Corrigido
