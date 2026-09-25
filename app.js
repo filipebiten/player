@@ -56,8 +56,7 @@ const channelsInGroup = (g) => Object.values(progress.channels)
   .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 const week = () => ({ channels: channelsInGroup(S.week) });
 const curCh = () => week().channels[S.sel] || null;
-const doneKey = () => FP.doneKey(new Date());
-const isDone = (ch) => FP.isOn(progress.done[doneKey()]?.[FP.channelKey(ch)]);
+const isDone = (ch) => FP.isOn(progress.done[FP.channelKey(ch)]);
 const isWatched = (id) => FP.isOn(progress.watched[id]);
 const firstOpen = () => { const i = week().channels.findIndex((c) => !isDone(c)); return i < 0 ? 0 : i; };
 // Ajustes (marcar/desmarcar canal) e sync podem encolher a lista do grupo atual sem a tela
@@ -209,9 +208,19 @@ function commit(rerender = true) {
 
 function toggleDone(ch) {
   if (!ch) return;
-  const k = doneKey();
-  const m = (progress.done[k] ||= {});
-  FP.setEntry(m, FP.channelKey(ch), !isDone(ch), now());
+  FP.setEntry(progress.done, FP.channelKey(ch), !isDone(ch), now());
+  commit();
+}
+
+// "Resetar semana": zera manualmente o "concluído" só dos canais do grupo em exibição —
+// concluído não reseta mais sozinho ao virar a semana-calendário (pedido do Filipe, 25/09/2026,
+// pra poder voltar numa semana específica depois e ver o que ficou pendente).
+function resetWeek() {
+  const chs = week().channels;
+  if (!chs.length) return;
+  if (!confirm(`Resetar os ${chs.length} canais concluídos deste grupo?`)) return;
+  const t = now();
+  chs.forEach((ch) => FP.setEntry(progress.done, FP.channelKey(ch), false, t));
   commit();
 }
 
@@ -413,6 +422,7 @@ function renderVideosTab() {
             </div>
             ${isCurrent ? '<span class="pill">Atual</span>' : ""}
             <span class="weekbar__count">${done} de ${total} concluídos</span>
+            ${total ? `<button class="icon-btn" data-action="reset-week" aria-label="Resetar canais concluídos deste grupo" ${done === 0 ? "disabled" : ""}>${I.refresh}</button>` : ""}
           </div>
           <div class="bar" role="progressbar" aria-label="Canais concluídos nesta semana" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}"><span style="width:${pct}%"></span></div>
         </div>
@@ -799,6 +809,7 @@ document.addEventListener("click", (e) => {
     case "back": backToList(); break;
     case "toggle-done": toggleDone(week().channels[+i]); break;
     case "toggle-done-cur": toggleDone(curCh()); break;
+    case "reset-week": resetWeek(); break;
     case "toggle-video": toggleWatched(id); break;
     case "refresh": loadChannel(curCh(), true); break;
     case "more": loadMore(curCh()); break;

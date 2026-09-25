@@ -50,32 +50,34 @@ t("semana seguinte deve ser weeksSinceEpoch + 1", () => {
     1);
 });
 
-// doneKey: um inteiro por semana real, sem precisar do índice da parte (a parte já está
-// implícita na lista de canais que está sendo mostrada, não precisa duplicar na chave).
-t("doneKey deve ser igual pra qualquer dia da mesma semana real", () => {
-  assert.equal(FP.doneKey(new Date(2026, 8, 21)), FP.doneKey(new Date(2026, 8, 23)));
-});
-
-t("doneKey deve mudar na semana seguinte (reset automático)", () => {
-  assert.notEqual(FP.doneKey(new Date(2026, 8, 28)), FP.doneKey(new Date(2026, 8, 21)));
-});
-
-t("doneKey deve ter o formato w<inteiro>", () => {
-  assert.match(FP.doneKey(new Date(2026, 8, 21)), /^w-?\d+$/);
-});
-
-// pruneProgress: done com chave "w<N>" de mais de 400 dias (57 semanas) é descartado;
-// mais novo que isso sobrevive.
-t("prune remove semanas muito antigas mas mantém recentes", () => {
+// done: mapa achatado por channelKey (25/09/2026 — antes era aninhado por semana real e
+// resetava sozinho toda semana; agora só reseta no clique explícito de "Resetar semana").
+// pruneProgress poda por idade da própria entrada (DONE_TTL, 400 dias), igual watched.
+t("prune remove done muito antigo mas mantém recente", () => {
   const now = new Date(2026, 8, 21).getTime();
-  const oldWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)) - 60; // ~420 dias atrás
-  const recentWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)) - 2; // 2 semanas atrás
+  const day = 86400000;
   const p = FP.emptyProgress();
-  p.done[`w${oldWeek}`] = { canalX: { t: now, on: true } };
-  p.done[`w${recentWeek}`] = { canalX: { t: now, on: true } };
+  p.done.canalVelho = { t: now - 420 * day, on: true };
+  p.done.canalRecente = { t: now - 14 * day, on: true };
   const pruned = FP.pruneProgress(p, now);
-  assert(!(`w${oldWeek}` in pruned.done), "semana de 420 dias atrás devia ter sido podada");
-  assert(`w${recentWeek}` in pruned.done, "semana de 2 atrás não devia ser podada");
+  assert(!("canalVelho" in pruned.done), "done de 420 dias atrás devia ter sido podado");
+  assert("canalRecente" in pruned.done, "done de 14 dias atrás não devia ser podado");
+});
+
+t("done não reseta sozinho ao virar a semana (só migra formato antigo, não apaga)", () => {
+  const p = FP.emptyProgress();
+  FP.setEntry(p.done, "canalX", true, 10);
+  // simula troca de semana: nada no app chama pruneProgress por virar semana, e o valor
+  // permanece marcado indefinidamente até o clique explícito em "Resetar semana".
+  assert.equal(FP.isOn(FP.mergeProgress(p, FP.emptyProgress()).done.canalX), true);
+});
+
+t("mergeProgress migra done aninhado antigo (\"wN\": {chKey: entry}) pro formato achatado", () => {
+  const legado = FP.emptyProgress();
+  legado.done["w2926"] = { canalX: { t: 10, on: true } };
+  const atual = FP.mergeProgress(FP.emptyProgress(), legado);
+  assert.equal(FP.isOn(atual.done.canalX), true);
+  assert(!("w2926" in atual.done), "chave de semana antiga não devia sobreviver à migração");
 });
 
 t("channelKey usa channelId > handle > query", () => {
@@ -103,7 +105,7 @@ t("merge: o mais recente vence por chave, e une chaves", () => {
   FP.setEntry(b.watched, "v1", false, 20); // desmarcado depois
   FP.setEntry(a.watched, "v2", true, 30);
   FP.setEntry(b.watched, "v3", true, 5);
-  FP.setEntry(a.done["2026-09-3"] = {}, "ch", true, 40);
+  FP.setEntry(a.done, "ch", true, 40);
   a.courses["P|C"] = { t: 1, lastLesson: "velha" };
   b.courses["P|C"] = { t: 2, lastLesson: "nova" };
   a.rot = { t: 1, p: 0, c: 0 }; b.rot = { t: 2, p: 1, c: 0 };
@@ -111,7 +113,7 @@ t("merge: o mais recente vence por chave, e une chaves", () => {
   assert.equal(FP.isOn(m.watched.v1), false);
   assert.equal(FP.isOn(m.watched.v2), true);
   assert.equal(FP.isOn(m.watched.v3), true);
-  assert.equal(FP.isOn(m.done["2026-09-3"].ch), true);
+  assert.equal(FP.isOn(m.done.ch), true);
   assert.equal(m.courses["P|C"].lastLesson, "nova");
   assert.equal(m.rot.p, 1);
   assert.deepEqual(FP.mergeProgress(b, a), m); // comutativo
@@ -125,19 +127,17 @@ t("merge tolera dado remoto vazio ou malformado", () => {
     assert.equal(FP.isOn(FP.mergeProgress(a, bad).watched.v1), true);
 });
 
-t("prune remove watched antigo e semanas muito antigas", () => {
+t("prune remove watched antigo e done antigo juntos", () => {
   const now = new Date(2026, 8, 21).getTime();
   const day = 86400000;
   const p = FP.emptyProgress();
   FP.setEntry(p.watched, "velho", true, now - 200 * day);
   FP.setEntry(p.watched, "novo", true, now - 10 * day);
-  const oldWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)) - 60; // ~420 dias
-  const recentWeek = FP.weeksSinceEpoch(new Date(2026, 8, 21)); // hoje
-  p.done[`w${oldWeek}`] = { x: { t: 1, on: true } };
-  p.done[`w${recentWeek}`] = { y: { t: now, on: true } };
+  FP.setEntry(p.done, "x", true, now - 420 * day);
+  FP.setEntry(p.done, "y", true, now);
   const r = FP.pruneProgress(p, now);
   assert.deepEqual(Object.keys(r.watched), ["novo"]);
-  assert.deepEqual(Object.keys(r.done), [`w${recentWeek}`]);
+  assert.deepEqual(Object.keys(r.done), ["y"]);
 });
 
 t("relDate em pt-BR", () => {

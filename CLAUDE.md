@@ -60,7 +60,7 @@ Os "4 grupos" que giram por semana agora vêm de `progress.channels` (não mais 
 {
   "v": 1,
   "watched": { "<videoId>": { "t": 1789995575282, "on": true } },
-  "done":    { "2026-09-3": { "<channelKey>": { "t": 1789995600000, "on": true } } },
+  "done":    { "<channelKey>": { "t": 1789995600000, "on": true } },
   "courses": { "Hotmart|Investidor 33 Dias": { "t": 1789995606223, "lastLesson": "Módulo 7, aula 3" } },
   "rot":     { "t": 1789995606448, "p": 1, "c": 0 },
   "channels": { "thejesuscopy": { "t": 1789995600000, "on": true, "group": 0, "name": "JesusCopy", "type": "channel", "handle": "thejesuscopy" } }
@@ -68,7 +68,7 @@ Os "4 grupos" que giram por semana agora vêm de `progress.channels` (não mais 
 ```
 
 - `watched`: check por vídeo, indexado por `videoId`.
-- `done`: chave `w<N>` (`FP.doneKey`), onde `N` é `weeksSinceEpoch` — uma chave por semana-calendário real. Muda sozinha toda semana, então quando um grupo volta a aparecer (~4 semanas depois) o progresso já nasce zerado. A chave interna é o `channelKey`.
+- `done`: mapa achatado por `channelKey`, mesmo padrão de `watched`/`channels` (25/09/2026 — antes era aninhado por semana real `w<N>`, resetava sozinho toda semana; agora só reseta no clique explícito em "Resetar semana", ver `resetWeek()` em `app.js`). Podado depois de 400 dias (`DONE_TTL` em `lib.js`), não por virar a semana.
 - **`channelKey`** = `channelId` ‖ `handle` ‖ `query` (`FP.channelKey`). **Nunca o índice** na lista. Por isso reordenar `WEEKS` não quebra o progresso, mas **renomear handle/channelId/query zera o progresso daquele canal**.
 - `courses`: chave `"<nome da plataforma>|<nome do curso>"`. `lastLesson` no `PLATFORMS` é só o **valor inicial**; depois de editado no app vale o salvo.
 - `rot`: rodízio dos cursos (`p` = índice da plataforma da vez, `c` = índice do curso).
@@ -175,7 +175,7 @@ Use as que o Filipe já tem instaladas, nesta ordem de utilidade:
 
 ## Roadmap e estado atual (retomar daqui)
 
-Atualizado em 2026-09-24.
+Atualizado em 2026-09-25.
 
 ### Já feito
 - **v2.0.0 / v2.1.x (21/09):** reformulação completa + "Mostrar mais vídeos", "Próximo não assistido", service worker offline, validação de token, diagnóstico nos Ajustes. Publicado em `main`, no ar.
@@ -188,12 +188,10 @@ Atualizado em 2026-09-24.
 - **Relogin silencioso ao reabrir Ajustes (24/09, `77484cd`):** o token do OAuth só vivia em memória, então todo reload forçava clicar "Conectar" de novo mesmo com consentimento do Google ainda válido — pendência da revisão do plano canais-oauth. Corrigido com flag device-local (`fp-config.oauthConnected`, sem token/segredo) que faz `openSettings()` tentar `prompt:""` automaticamente; só mostra o botão "Conectar" se a tentativa silenciosa falhar de verdade. `diagnostics()` também ganhou contagem de canais no rodízio (`5b668f9`). `CHANGELOG.md` atualizado com nota retroativa da ordem alfabética da lista (decisão do plano canais-oauth, nunca documentada).
 
 - **Re-render após Ajustes/sync + testes de `channels` (25/09, `623614b`):** os 2 achados menores da revisão do plano canais-oauth foram resolvidos — `close-settings` e o fim do sync agora chamam `render()`+`clampSel()`; `lib.test.mjs` ganhou os 3 casos que faltavam (`pruneProgress` com `channels`, comutatividade do merge com `channels`, `migrateWeeksChannels` com `channelId`+`handle` juntos). Verificado ao vivo em navegador (canal aparece na lista principal sem reload) e via e2e (`week-and-a11y.sh`, `sync.sh`, `channels.sh`).
+- **Reset de canal deixa de ser automático por semana (25/09, pendente #1 fechada no mesmo dia em que foi pedida).** `done` era guardado por semana real (`doneKey`, chave `w<N>`) — resetava sozinho toda semana-calendário. Agora é mapa achatado por `channelKey` (mesmo padrão de `watched`/`channels`), migração automática do formato antigo dentro de `mergeProgress`/`norm` (sem passo separado — roda sozinha no primeiro load depois do deploy). Botão novo **"Resetar semana"** no topo da lista de canais (`data-action="reset-week"`), com confirmação, zera só os canais do grupo em exibição. `doneKey` removido de `lib.js` (não tinha mais uso). `pruneProgress` poda `done` por idade da entrada (400 dias) em vez de por semana inteira. 27 testes de lógica pura `ok` (3 reescritos, o resto migrado pro formato achatado); e2e `week-and-a11y.sh` (0 violações) e `sync.sh` (done sincroniza entre 2 aparelhos) sem regressão; botão testado manualmente ao vivo (marca → reload não reseta → clique reseta). Ver `CHANGELOG.md` 2.4.0.
 
 ### Pendências, em ordem
-
-1. **Reset de canal deixa de ser automático por semana (pedido 25/09/2026, não implementado).** Hoje `doneKey(d)` = `w<weeksSinceEpoch>` — "canal concluído" é guardado numa chave que muda sozinha toda semana-calendário real, então ao virar a semana a UI mostra tudo desmarcado de novo (o dado antigo não é apagado, só fica preso na chave da semana passada, sem jeito de consultar). Vídeo (`watched`) já nunca reseta por semana hoje (só poda por `WATCHED_TTL`, 180 dias) — isso já está como o Filipe quer, não mexer.
-   - **Pedido:** canal "concluído" só reseta quando o Filipe clicar num botão **"Resetar semana"** (não existe ainda). Motivo: quer poder voltar numa semana específica depois e ver se algum canal ficou pendente, sem o auto-reset escondendo esse estado ao virar a semana.
-   - **Implicação técnica pra quem for planejar:** abandonar (ou complementar) o esquema de chave-por-semana automática — passar a ter um estado "atual" de `done` por canal que só zera no clique do botão, decidindo se quer manter consultável o que aconteceu em semanas passadas ou só o estado atual + reset manual. Mexe direto no coração do modelo de progresso (`done`, `doneKey`, `mergeProgress`, `pruneProgress` em `lib.js`) — planejar com calma, não é mudança pequena.
+Nenhuma pendência própria deste app no momento.
 
 ### Ideias em aberto (só se o Filipe pedir)
 - **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage`. Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.

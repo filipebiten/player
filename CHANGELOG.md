@@ -2,6 +2,16 @@
 
 Formato: mais recente primeiro. Datas em AAAA-MM-DD.
 
+## 2.4.0 — 2026-09-25
+
+### Alterado
+- **Canal "concluído" não reseta mais sozinho ao virar a semana-calendário.** Antes, `done` era guardado por semana real (chave `w<N>`, muda toda semana-calendário) — ao virar a semana a lista de canais concluídos voltava vazia sozinha, mesmo sem o Filipe ter revisado. Agora `done` é um mapa achatado por canal (mesmo padrão de `watched`/`channels`) que só zera com uma ação explícita: o botão **"Resetar semana"** novo no topo da lista de canais (ícone ao lado de "X de Y concluídos"), que reseta só os canais do grupo em exibição, com confirmação antes. `watched` (vídeo assistido) não mudou — já não resetava por semana.
+- Poda de dados antigos (`pruneProgress`) passa a descartar `done` por idade da própria marcação (400 dias, `DONE_TTL`), igual já fazia com `watched`, em vez de por "semana inteira velha".
+
+### Testes
+- `lib.test.mjs`: reescritos os testes que validavam o reset automático por semana (comportamento removido de propósito); novos casos cobrem prune por idade do `done` achatado, migração automática do formato antigo (`"wN": {chKey: entry}`) pro achatado dentro de `mergeProgress`, e que `done` sobrevive a merge sem resetar sozinho. 27 testes `ok`.
+- e2e: `week-and-a11y.sh` (0 violações axe), `sync.sh` (marcar/desmarcar `done` sincroniza entre 2 aparelhos simulados), verificação manual do botão "Resetar semana" (marca → reload não reseta → clique reseta).
+
 ## 2.3.3 — 2026-09-25
 
 ### Corrigido

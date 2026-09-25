@@ -19,11 +19,6 @@
   // Qual das 4 partes está na vez nesta semana real. Rotação contínua: nunca reseta por mês.
   const weekIndexForDate = (d) => ((weeksSinceEpoch(d) % 4) + 4) % 4;
 
-  // Chave do "canal concluído": uma por semana real (segunda a domingo). Muda sozinha
-  // toda semana, então quando a parte volta a aparecer (~4 semanas depois) o progresso já
-  // está zerado — não precisa de lógica de reset separada.
-  const doneKey = (d) => `w${weeksSinceEpoch(d)}`;
-
   // Identidade estável do canal (não depende da posição na lista).
   const channelKey = (ch) => ch.channelId || ch.handle || ch.query;
 
@@ -31,7 +26,8 @@
     String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   // ---- Progresso (é o que sincroniza no Gist) ----
-  // watched[videoId] = {t, on}; done["w2926"][channelKey] = {t, on};
+  // watched[videoId] = {t, on}; done[channelKey] = {t, on} (mesmo formato de watched/channels —
+  // "concluído" persiste até o clique explícito em "Resetar semana" em app.js, nunca sozinho);
   // courses["Plataforma|Curso"] = {t, lastLesson}; rot = {t, p, c}
   // Desmarcar grava {on:false} (túmulo) para o merge entre aparelhos não ressuscitar a marca.
   const emptyProgress = () => ({ v: 1, watched: {}, done: {}, courses: {}, rot: null, channels: {} });
@@ -40,15 +36,6 @@
   const isOn = (e) => !!(e && e.on);
 
   const isObj = (x) => x && typeof x === "object" && !Array.isArray(x);
-  const norm = (p) => ({
-    v: 1,
-    watched: isObj(p?.watched) ? p.watched : {},
-    done: isObj(p?.done) ? p.done : {},
-    courses: isObj(p?.courses) ? p.courses : {},
-    rot: isObj(p?.rot) ? p.rot : null,
-    channels: isObj(p?.channels) ? p.channels : {},
-  });
-
   const newer = (a, b) => (!a ? b : !b ? a : b.t > a.t ? b : a);
   const mergeMaps = (a = {}, b = {}) => {
     const out = {};
@@ -56,15 +43,36 @@
     return out;
   };
 
+  // Migra o formato antigo de `done` (chave "w<N>" por semana real -> mapa de channelKey,
+  // reset automático toda semana) pro formato achatado atual (channelKey -> entry direto,
+  // mesmo padrão de watched/channels). Idempotente: entrada já achatada (tem `.on`) passa
+  // direto; se a mesma chave aparecer em mais de um balde antigo, fica a mais nova.
+  function flattenDone(raw) {
+    const out = {};
+    const take = (k, e) => { out[k] = newer(out[k], e); };
+    for (const [k, v] of Object.entries(raw || {})) {
+      if (!isObj(v)) continue;
+      if (typeof v.on === "boolean") take(k, v);
+      else for (const [ck, e] of Object.entries(v)) if (isObj(e)) take(ck, e);
+    }
+    return out;
+  }
+
+  const norm = (p) => ({
+    v: 1,
+    watched: isObj(p?.watched) ? p.watched : {},
+    done: flattenDone(p?.done),
+    courses: isObj(p?.courses) ? p.courses : {},
+    rot: isObj(p?.rot) ? p.rot : null,
+    channels: isObj(p?.channels) ? p.channels : {},
+  });
+
   function mergeProgress(a, b) {
     a = norm(a); b = norm(b);
-    const done = {};
-    for (const k of new Set([...Object.keys(a.done), ...Object.keys(b.done)]))
-      done[k] = mergeMaps(a.done[k], b.done[k]);
     return {
       v: 1,
       watched: mergeMaps(a.watched, b.watched),
-      done,
+      done: mergeMaps(a.done, b.done),
       courses: mergeMaps(a.courses, b.courses),
       rot: newer(a.rot, b.rot) || null,
       channels: mergeMaps(a.channels, b.channels),
@@ -122,16 +130,14 @@
     return { query, name };
   }
 
+  const DONE_TTL = 400 * DAY; // "concluído" persiste até resetar manualmente, mas não pra sempre
+
   function pruneProgress(p, now = Date.now()) {
     p = norm(p);
     const watched = {};
     for (const [k, e] of Object.entries(p.watched)) if (now - e.t <= WATCHED_TTL) watched[k] = e;
     const done = {};
-    const curWeek = weeksSinceEpoch(new Date(now));
-    for (const [k, v] of Object.entries(p.done)) {
-      const n = Number(k.slice(1)); // "w2926" -> 2926
-      if (Number.isFinite(n) && curWeek - n <= 57) done[k] = v; // ~400 dias / 7
-    }
+    for (const [k, e] of Object.entries(p.done)) if (now - e.t <= DONE_TTL) done[k] = e;
     return { ...p, watched, done };
   }
 
@@ -149,7 +155,7 @@
   const isFresh = (entry, now = Date.now(), ttl = CACHE_TTL) => !!entry && now - entry.t < ttl;
 
   const api = {
-    CACHE_TTL, weeksSinceEpoch, weekIndexForDate, doneKey, channelKey, escapeHtml,
+    CACHE_TTL, weeksSinceEpoch, weekIndexForDate, channelKey, escapeHtml,
     emptyProgress, setEntry, isOn, mergeProgress, pruneProgress, relDate, isFresh,
     assignGroup, migrateWeeksChannels, resolveChannelEntry, parseSearchQuery,
   };
