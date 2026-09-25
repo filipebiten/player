@@ -166,6 +166,14 @@ t("emptyProgress deve ter channels: {}", () => {
   assert("channels" in empty && Object.keys(empty.channels).length === 0);
 });
 
+// pruneProgress só poda watched/done — channels não tem TTL, tem que sobreviver intacto.
+t("pruneProgress deve manter channels intacto", () => {
+  const p = FP.emptyProgress();
+  p.channels.x = { t: 1, on: true, group: 0, name: "X", channelId: "UCxxx" };
+  const pruned = FP.pruneProgress(p, Date.now());
+  assert.deepEqual(pruned.channels, p.channels);
+});
+
 // assignGroup: grupo com menos canais "on" ganha; empate vai pro menor índice.
 t("assignGroup deve retornar grupo com menos canais on", () => {
   const chs = {
@@ -190,6 +198,16 @@ t("migrateWeeksChannels deve converter WEEKS para channels map", () => {
     `esperava entrada "aa" no grupo 0, veio ${JSON.stringify(out.aa)}`);
   assert(out.UCxxx && out.UCxxx.group === 1 && out.UCxxx.channelId === "UCxxx",
     `esperava entrada "UCxxx" no grupo 1, veio ${JSON.stringify(out.UCxxx)}`);
+});
+
+// channelKey prioriza channelId — canal migrado com channelId E handle juntos (canal que já
+// tinha sido resolvido antes da migração) tem que indexar pelo channelId, não pelo handle.
+t("migrateWeeksChannels deve indexar por channelId quando canal tem channelId e handle juntos", () => {
+  const WEEKS = [{ label: "Semana 1", channels: [{ name: "C", channelId: "UCyyy", handle: "cc", type: "channel" }] }];
+  const out = FP.migrateWeeksChannels(WEEKS, 1);
+  assert(out.UCyyy && out.UCyyy.channelId === "UCyyy" && out.UCyyy.handle === "cc",
+    `esperava entrada indexada por "UCyyy" com handle preservado, veio ${JSON.stringify(out)}`);
+  assert(!("cc" in out), "não devia haver entrada separada indexada por handle");
 });
 
 // resolveChannelEntry: casa inscrição OAuth (só tem channelId) com canal migrado por
@@ -222,6 +240,7 @@ t("mergeProgress deve fazer merge de channels por timestamp", () => {
   const b = FP.emptyProgress(); b.channels.x = { t: 2, on: false, group: 0, name: "X" };
   const merged = FP.mergeProgress(a, b);
   assert.equal(merged.channels.x.on, false, "merge de channels deve preferir o timestamp maior (t:2, on:false)");
+  assert.deepEqual(FP.mergeProgress(b, a), merged, "merge de channels tem que ser comutativo");
 });
 
 // parseSearchQuery: extrai o termo de um link de busca do YouTube, ou usa texto puro.

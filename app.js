@@ -60,6 +60,9 @@ const doneKey = () => FP.doneKey(new Date());
 const isDone = (ch) => FP.isOn(progress.done[doneKey()]?.[FP.channelKey(ch)]);
 const isWatched = (id) => FP.isOn(progress.watched[id]);
 const firstOpen = () => { const i = week().channels.findIndex((c) => !isDone(c)); return i < 0 ? 0 : i; };
+// Ajustes (marcar/desmarcar canal) e sync podem encolher a lista do grupo atual sem a tela
+// principal saber — sem isso S.sel aponta pra fora e o canal selecionado "some" (curCh() null).
+const clampSel = () => { const n = week().channels.length; S.sel = n ? Math.min(S.sel, n - 1) : 0; };
 
 // ============================================================
 // YT API — resolveChannelId / fetchChannelVids / searchVids reaproveitadas
@@ -725,7 +728,7 @@ async function syncNow() {
           }
         }
         sync.at = now(); setSync("ok");
-        if (changed && !document.activeElement?.matches("#app input")) render();
+        if (changed && !document.activeElement?.matches("#app input")) { clampSel(); render(); }
         break;
       } catch (e) {
         if (e.status === 404 && config.gistId && attempt === 0) { config.gistId = ""; saveConfig(); continue; } // gist apagado
@@ -806,7 +809,7 @@ document.addEventListener("click", (e) => {
     case "oauth-disconnect": FPAuth.disconnect(); chState.subs = null; chState.error = ""; config.oauthConnected = false; store.set("fp-config", config); renderSettings(); break;
     case "add-search": addSearchChannel(); break;
     case "settings": openSettings(); break;
-    case "close-settings": dlg().close(); break;
+    case "close-settings": dlg().close(); clampSel(); render(); break;
     case "sync-now": saveSettingsFields(el.closest("form")); syncNow(); break;
   }
 });
