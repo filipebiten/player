@@ -190,7 +190,10 @@ Atualizado em 2026-09-24.
 - **Re-render após Ajustes/sync + testes de `channels` (25/09, `623614b`):** os 2 achados menores da revisão do plano canais-oauth foram resolvidos — `close-settings` e o fim do sync agora chamam `render()`+`clampSel()`; `lib.test.mjs` ganhou os 3 casos que faltavam (`pruneProgress` com `channels`, comutatividade do merge com `channels`, `migrateWeeksChannels` com `channelId`+`handle` juntos). Verificado ao vivo em navegador (canal aparece na lista principal sem reload) e via e2e (`week-and-a11y.sh`, `sync.sh`, `channels.sh`).
 
 ### Pendências, em ordem
-Nenhuma pendência própria deste app no momento. Ver "Ideias em aberto" abaixo (só se o Filipe pedir).
+
+1. **Reset de canal deixa de ser automático por semana (pedido 25/09/2026, não implementado).** Hoje `doneKey(d)` = `w<weeksSinceEpoch>` — "canal concluído" é guardado numa chave que muda sozinha toda semana-calendário real, então ao virar a semana a UI mostra tudo desmarcado de novo (o dado antigo não é apagado, só fica preso na chave da semana passada, sem jeito de consultar). Vídeo (`watched`) já nunca reseta por semana hoje (só poda por `WATCHED_TTL`, 180 dias) — isso já está como o Filipe quer, não mexer.
+   - **Pedido:** canal "concluído" só reseta quando o Filipe clicar num botão **"Resetar semana"** (não existe ainda). Motivo: quer poder voltar numa semana específica depois e ver se algum canal ficou pendente, sem o auto-reset escondendo esse estado ao virar a semana.
+   - **Implicação técnica pra quem for planejar:** abandonar (ou complementar) o esquema de chave-por-semana automática — passar a ter um estado "atual" de `done` por canal que só zera no clique do botão, decidindo se quer manter consultável o que aconteceu em semanas passadas ou só o estado atual + reset manual. Mexe direto no coração do modelo de progresso (`done`, `doneKey`, `mergeProgress`, `pruneProgress` em `lib.js`) — planejar com calma, não é mudança pequena.
 
 ### Ideias em aberto (só se o Filipe pedir)
 - **Segurança:** todos os apps de `filipebiten.github.io` compartilham o mesmo `localStorage`. Um XSS em qualquer app lê o token do gist daqui e vice-versa. Saída real: origem separada por app (domínio próprio). Rodar `claude-security` se ele quiser tratar.
